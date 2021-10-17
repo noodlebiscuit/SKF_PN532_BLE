@@ -200,9 +200,6 @@ void ConnectToReader(void)
     // read the card
     uint8_t uidLength = Read_PN532(pagedata, headerdata);
 
-    // what sensor type are we dealing with?
-    InsightSenor sensorType = Unknown;
-
     // if the UID is valid, then the data should be OK
     if (uidLength == UID_LENGTH)
     {

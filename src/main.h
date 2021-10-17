@@ -110,15 +110,6 @@ byte AKN[3] = {0x00, 0x0d, 0x0a};
 
 // ============================================================================
 
-// byte ACKN[6] = {0x41, 0x43, 0x4b, 0x00, 0x0d, 0x0a};   // simple acknowledge
-// byte CRTG[6] = {0x43, 0x52, 0x54, 0x47, 0x0d, 0x0a};   // continuous read
-// byte ORTG[6] = {0x4f, 0x52, 0x54, 0x47, 0x0d, 0x0a};   // read once on each receipt of this command
-// byte PNDM[6] = {0x50, 0x4e, 0x44, 0x4d, 0x0d, 0x0a};   // post NDEF message to the the PN532
-// byte CLTG[6] = {0x43, 0x4c, 0x54, 0x47, 0x0d, 0x0a};   // clear all TAG contents
-// byte ADDNDR[6] = {0x41, 0x44, 0x44, 0x4e, 0x44, 0x52}; // add an NDEF record to the NDEF message
-
-// ============================================================================
-
 byte NFCN[6] = {0x4e, 0x46, 0x43, 0x00, 0x0d, 0x0a}; // NFC response payload for an ACKN (with serial port no.)
 
 // ============================================================================
@@ -128,43 +119,6 @@ uint8_t NDEF_EN_RECORD_TNF = 0x03;
 uint8_t INVALID_UID = 0xff;
 
 // ============================================================================
-
-// uint8_t CMWR_IIGO[9] = {0x43, 0x4d, 0x57, 0x52, 0x2d, 0x31, 0x31, 0x47, 0x30};			  // CMWR-IIGO sensor hardware type
-// uint8_t CMWR_21[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x32, 0x31};						  // CMWR 21 sensor hardware type
-// uint8_t CMWR_22[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x32, 0x32};						  // CMWR 22 sensor hardware type
-// uint8_t CMWR_23[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x32, 0x33};						  // CMWR 23 sensor hardware type
-// uint8_t CMWR_31[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x33, 0x31};						  // CMWR 31 sensor hardware type
-// uint8_t CMWR_32[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x33, 0x32};						  // CMWR 22 sensor hardware type
-// uint8_t CMWR_33[7] = {0x43, 0x4d, 0x57, 0x52, 0x20, 0x33, 0x33};						  // CMWR 23 sensor hardware type
-// uint8_t FIELD_HARDWARE_CMWR2[5] = {0x68, 0x77, 0x76, 0x6e, 0x3a};						  // "hwnv" label for CMWR3 sensors
-// uint8_t FIELD_HARDWARE_CMWR3[9] = {0x68, 0x61, 0x72, 0x64, 0x77, 0x61, 0x72, 0x65, 0x3a}; // hardware label for CMWR3 sensors
-
-// ============================================================================
-
-/// <summary>
-/// Describes each of the commands that this reader supports
-/// </summary>
-// enum PN532_command : byte
-// {
-// 	None,
-// 	Acknowledge,
-// 	ClearTag,
-// 	ReadOnce,
-// 	ReadContinuous,
-// 	AddNdefRecord,
-// 	WriteNdefMessage,
-// };
-
-/// <summary>
-/// Describes each of the supported Insight Rail sensor types
-/// </summary>
-enum InsightSenor
-{
-	Unknown,
-	CMWR1,
-	CMWR2,
-	CMWR3
-};
 
 /// <summary>
 /// Describes each of the supported card types
@@ -213,22 +167,6 @@ void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
 
 /// <summary>
-/// Process byte level commands from the connected BLE client
-/// </summary>
-// void ReadSerialCommands(void);
-
-/// <summary>
-/// process the command received over the BLE SoftSerial I/O
-/// </summary>
-// void ProcessSerialCommand(PN532_command, uint8_t *);
-
-/// <summary>
-/// Get the received command type
-/// </summary>
-/// <param name="buffer">byte array to search against</param>
-//PN532_command GetCommandType(uint8_t *);
-
-/// <summary>
 /// Appends a received NDEF record to an existing NDEF message
 /// </summary>
 void AddNdefRecordToMessage(void);
@@ -240,49 +178,11 @@ void AddNdefRecordToMessage(void);
 void ConnectToReader(void);
 
 /// <summary>
-/// Clear TAG contents or write complete NDEF message
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="pagedata">reference to the read NDEF message body</param>
-//void ExecuteReaderCommands(uint8_t *, uint8_t *);
-
-/// <summary>
-/// Clears and overwrites the complete contents of the NDEF message block
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="clearCard">clear card before write action</param>
-//void WriteNdefMessagePayload(uint8_t *, bool);
-
-/// <summary>
-/// Completely wipes an NTAG card of all contents
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-//void ClearTheCard(uint8_t *);
-
-/// <summary>
-/// Writes the NDEF contents of a card to the serial port
-/// </summary>
-/// <param name="pagedata">returns the NDEF message payload</param>
-/// <param name="headerdata">returns the NDEF meassage header</param>
-//void WriteMessageToSerial(uint8_t *, uint8_t *);
-
-/// <summary>
 /// Writes the NDEF contents of a card to the serial port
 /// </summary>
 /// <param name="pagedata">returns the NDEF message payload</param>
 /// <param name="headerdata">returns the NDEF meassage header</param>
 uint8_t Read_PN532(uint8_t *, uint8_t *);
-
-/// <summary>
-/// Reset the reader after RTOS timeout
-/// </summary>
-//void ResetReader(void);
-
-/// <summary>
-/// Determine the Insight sensor type (CMWR2, CMWR3 or UNKNOWN)
-/// </summary>
-/// <param name="message">reference to the read NDEF message</param>
-//InsightSenor GetSensorType(NDEF_Message *);
 
 /// <summary>
 /// How many pages are required to cover all message bytes?
@@ -301,16 +201,6 @@ void ToggleLED(bool);
 /// </summary>
 /// <param name="period">milliseconds to illuminate for</param>
 void FlashLED(int, int);
-
-/// <summary>
-/// Searches for a needle in a haystack, where both needle and haystack are byte arrays
-/// </summary>
-/// <param name="haystack">pointer to n bytes of the haystack</param>
-/// <param name="needle">pointer to n bytes of the needle</param>
-/// <param name="haystack_length">number of elements in the haystack</param>
-/// <param name="needle_length">number of elements in the needles</param>
-/// <returns>TRUE if needle is found in haystack</returns>
-bool NeedleSearch(uint8_t *, uint8_t *, int, int);
 
 /// <summary>
 /// INTERUPT SERVICE ROUTINE
