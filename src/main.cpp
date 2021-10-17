@@ -1,0 +1,407 @@
+/*
+   ============================================================================
+   Reads and writes NDEF records using an NXP PN532 and ARDUNINO NANO
+   ----------------------------------------------------------------------------
+
+   This application was created by SKF UK Ltd for use with SKF INSIGHT RAIL
+   It is not intended for public release, primarily as its functionality is
+   based on private (internal SKF testing) of INSIGHT sensor commissioning
+
+   All libraries used were created by AdaFruit
+
+   REVISION 1.0 April 2020
+   Alex Pinkerton
+
+   ============================================================================
+*/
+
+#include "main.h"
+
+// ============================================================================
+
+#pragma region PRIVATE MEMBERS
+// reader command enum
+PN532_command command;
+
+// current time (for TIMEOUT management)
+unsigned long currentTime = 0;
+
+// command been received over serial port?
+bool _commandReceived = false;
+
+// block access to the reader hardware?
+bool _blockReader = false;
+
+// references the UID from the TAG to block multiple reads
+uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+// create a new NDEF message
+NDEF_Message *ndef_message = new NDEF_Message();
+
+// enable TIMEOUTS (for WRITE or ONE SHOT)?
+volatile bool _enableTimeouts = false;
+
+// MBED RTOS timer
+// mbed::Ticker timer;
+#pragma endregion
+
+// ============================================================================
+
+#pragma region MAIN APPLICATION LOOP
+/// <summary>
+/// Configure the BLE hardware
+/// </summary>
+void setupBLE()
+{
+   // initiate BLE comms
+   startBLE();
+
+   // Create BLE service and characteristics.
+   BLE.setLocalName(nameOfPeripheral);
+   BLE.setAdvertisedService(shakerControlService);
+   shakerControlService.addCharacteristic(rxChar);
+   shakerControlService.addCharacteristic(txChar);
+   BLE.addService(shakerControlService);
+
+   // Bluetooth LE connection handlers.
+   BLE.setEventHandler(BLEConnected, onBLEConnected);
+   BLE.setEventHandler(BLEDisconnected, onBLEDisconnected);
+
+   // Event driven reads.
+   rxChar.setEventHandler(BLEWritten, onRxCharValueUpdate);
+
+   // Let's tell devices about us.
+   BLE.advertise();
+
+   if (IS_DEGUG)
+   {
+      //Print out full UUID and MAC address
+      Serial.println("Peripheral advertising info: ");
+      Serial.print("Name: ");
+      Serial.println(nameOfPeripheral);
+      Serial.print("MAC: ");
+      Serial.println(BLE.address());
+      Serial.print("Service UUID: ");
+      Serial.println(shakerControlService.uuid());
+      Serial.print("rxCharacteristic UUID: ");
+      Serial.println(uuidOfRxData);
+      Serial.print("txCharacteristics UUID: ");
+      Serial.println(uuidOfTxData);
+      Serial.println("Bluetooth device active, waiting for connections...");
+   }
+}
+
+
+/// <summary>
+/// A BLE device has connected to our sensor
+/// </summary>
+/// <param name="central">BLE device</param>
+void onBLEConnected(BLEDevice central)
+{
+   SetConnectedToBLE = HIGH;
+}
+
+/// <summary>
+/// A BLE device has just disconnected from our sensor
+/// </summary>
+/// <param name="central">BLE device</param>
+void onBLEDisconnected(BLEDevice central)
+{
+   SetConnectedToBLE = LOW;
+}
+
+/// <summary>
+/// Process received data serial data
+/// </summary>
+/// <param name="central">BLE device</param>
+/// <param name="characteristic">BLE characteristic referenced</param>
+void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
+{
+   // disable the TACHO tick interrupts
+   OnClockTick.disable_irq();
+
+   // read and cache the received BLE message
+   byte tmp[RX_BUFFER_SIZE];
+   int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
+
+   // process the received BLE message
+   processControlMessage(tmp, dataLength);
+
+   // re-enable the TACHO tick interrupts
+   OnClockTick.enable_irq();
+}
+
+/// <summary>
+/// Start the BLE service!
+/// </summary>
+void startBLE()
+{
+   if (!BLE.begin())
+   {
+      if (IS_DEGUG)
+      {
+         Serial.println("starting BLE failed!");
+      }
+      while (1)
+         ;
+   }
+}
+
+
+/// <summary>
+/// Setup the ARDUINO
+/// </summary>
+void setup(void)
+{
+  // set the LED pin
+  pinMode(COMMS_LED, OUTPUT);
+
+  // three flashes to confirm the reader is active
+  for (int i = 0; i < 3; ++i)
+  {
+    FlashLED(100, 150);
+  }
+
+  // initialise the serial port
+  Serial.begin(SERIAL_BAUD_RATE);
+  Serial.println(F(HARDWARE_IDENTIFIER));
+
+  // set the timeout value
+  //timer.attach(&AtTime, 5);
+
+  // initiate connection to the PN532 board
+  nfc.begin();
+
+  // configure board to read RFID tags
+  nfc.SAMConfig();
+}
+
+/// <summary>
+/// APPLICATION SUPER LOOP
+/// </summary>
+void loop(void)
+{
+  // communicate with the PN532
+  ConnectToReader();
+}
+#pragma endregion
+
+// ============================================================================
+
+/// <summary>
+/// Writes the NDEF contents of a card to the serial port
+/// </summary>
+/// <param name="message">reference to the read NDEF message</param>
+void ConnectToReader(void)
+{
+  // if the reader is blocked, then bypass this method completely
+  if (!_blockReader)
+  {
+    uint8_t pagedata[TOTAL_BLOCKS * BYTES_PER_BLOCK];
+    uint8_t headerdata[16];
+
+    // read the card
+    uint8_t uidLength = Read_PN532(pagedata, headerdata);
+
+    // what sensor type are we dealing with?
+    InsightSenor sensorType = Unknown;
+
+    // if the UID is valid, then the data should be OK
+    if (uidLength == UID_LENGTH)
+    {
+      // make a temporary copy of the received UID
+      uint8_t *uidRecord = new uint8_t[UID_LENGTH];
+      uidRecord[0] = headerdata[0];
+      uidRecord[1] = headerdata[1];
+      uidRecord[2] = headerdata[2];
+      uidRecord[3] = headerdata[4];
+      uidRecord[4] = headerdata[5];
+      uidRecord[5] = headerdata[6];
+      uidRecord[6] = headerdata[7];
+
+      //
+      // if this is the same UID then we don't process this - otherwise we end
+      // up in a never ending loop of reading the TAG and sending the data back
+      //
+      if (memcmp(_headerdata, uidRecord, UID_LENGTH) != 0)
+      {
+        for (uint8_t i = 0; i < UID_LENGTH; ++i)
+        {
+          _headerdata[i] = uidRecord[i];
+        }
+
+        // reset any command that might have been received
+        _commandReceived = false;
+
+        // does this message contain a valid NDEF record?
+        if (pagedata[0] == NDEF_EN_RECORD_TNF)
+        {
+          // create the NDEF payload
+          NDEF_Message message = NDEF_Message(&pagedata[2], pagedata[1]);
+
+          //
+          // make sure we have at least one NDEF message that we
+          // can write out over the USB serial port
+          //
+          if (message.getRecordCount() > 0)
+          {
+            // if we have at least one NDEF record then write this to USB
+            // WriteMessageToSerial(pagedata, headerdata);
+          }
+        }
+      }
+      // release this object and leave method right here!
+      delete[] uidRecord;
+      return;
+    }
+
+    // if we've reached this point then we need to reset the received UID
+    for (uint8_t i = 0; i < UID_LENGTH; ++i)
+    {
+      _headerdata[i] = 0x00;
+    }
+  }
+}
+
+
+/// <summary>
+/// Process any received ProtoBuf message payload
+/// </summary>
+/// <param name="message">pointer to the received PB message byte array</param>
+/// <param name="messageSize">number of bytes in the PB message</param>
+void processControlMessage(byte *message, int messageSize)
+{
+}
+
+/// <summary>
+/// Writes the NDEF contents of a card to the serial port
+/// </summary>
+/// <param name="pagedata">returns the NDEF message payload</param>
+/// <param name="headerdata">returns the NDEF meassage header</param>
+void WriteMessageToSerial(uint8_t *pagedata, uint8_t *headerdata)
+{
+  // return all collected bytes
+  Serial.print(SKF_NTAG_PREFIX);
+  Serial.write(headerdata, 16);
+  Serial.write(pagedata, pagedata[1] + 3);
+  Serial.println(SKF_NTAG_SUFFIX);
+
+  // flush the USB receiver
+  Serial.flush();
+}
+
+/// <summary>
+/// Writes the NDEF contents of a card to the serial port
+/// </summary>
+/// <param name="pagedata">returns the NDEF message payload</param>
+/// <param name="headerdata">returns the NDEF meassage header</param>
+uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
+{
+  uint8_t uidLength = 0;
+  uint8_t success;
+
+  // buffer for a single blocj
+  uint8_t data[BLOCK_SIZE];
+
+  // Buffer to store the returned UID
+  uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0};
+
+  //
+  // Wait for an NTAG2XX card.  When one is found 'uid' will be populated with
+  // the UID, and uidLength will indicate the size of the UUID (normally 7 bytes)
+  //
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, WAIT_FOR_CARD_MS);
+
+  // did we get a valid UID from this card?
+  if (success & (uidLength == UID_LENGTH))
+  {
+    // illuminate the status LED
+    ToggleLED(true);
+
+    // read the header block
+    if (nfc.mifareclassic_ReadDataBlock(0, data))
+    {
+      memcpy(headerdata, data, BLOCK_SIZE);
+    }
+
+    // reset the block index
+    uint8_t block = 4;
+
+    // set the next block
+    for (uint8_t i = 0; i < BLOCK_COUNT; i++)
+    {
+      //
+      // try and read the next block. If successful then append
+      // the received block to the complete page array
+      //
+      if (nfc.mifareclassic_ReadDataBlock(block, data))
+      {
+        // if reader contents are corrupted, then abort here
+        if (i == 0 && ((data[1] == 0) | (data[2] == 0) | (data[3] == 0)))
+        {
+          uidLength = INVALID_UID;
+          break;
+        }
+
+        // build the return payload
+        memcpy(pagedata + (i * BLOCK_SIZE), data, BLOCK_SIZE);
+      }
+
+      // increment the block index
+      block += BYTES_PER_BLOCK;
+    }
+  }
+
+  // disable the status LED
+  ToggleLED(false);
+
+  // return the number UID bytes
+  return uidLength;
+}
+
+// ============================================================================
+
+#pragma region PRIVATE SUPPORT METHODS
+/// <summary>
+/// Toggle the LED ON or OFF every time this method is called
+/// </summary>
+/// <param name="period">true for toggle else false for LED OFF</param>
+void ToggleLED(bool enableToggle)
+{
+  // if we're forcing the LED to be OFF, then do so here
+  if (!enableToggle)
+  {
+    digitalWrite(COMMS_LED, LOW);
+  }
+
+  else
+  {
+    // otherwise just toggle the existing state
+    if (digitalRead(COMMS_LED) == HIGH)
+    {
+      digitalWrite(COMMS_LED, LOW);
+    }
+    else
+    {
+      digitalWrite(COMMS_LED, HIGH);
+    }
+  }
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+/// <param name="period">milliseconds to illuminate for</param>
+void FlashLED(int onPeriod, int offPeriod)
+{
+  digitalWrite(COMMS_LED, HIGH);
+  delay(onPeriod);
+  digitalWrite(COMMS_LED, LOW);
+  delay(offPeriod);
+}
+#pragma endregion
+
+// ============================================================================
+
+#pragma region PROCESS INTERUPTS
+#pragma endregion
