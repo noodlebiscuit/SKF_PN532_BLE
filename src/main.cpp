@@ -20,9 +20,6 @@
 // ============================================================================
 
 #pragma region PRIVATE MEMBERS
-// reader command enum
-PN532_command command;
-
 // current time (for TIMEOUT management)
 unsigned long currentTime = 0;
 
