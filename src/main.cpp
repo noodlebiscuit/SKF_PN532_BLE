@@ -286,7 +286,7 @@ void ConnectToReader(void)
                if (message.getRecordCount() > 0)
                {
                   // if we have at least one NDEF record then write this to USB
-                  WriteMessageToSerial(pagedata, headerdata);
+                  PublishPayloadToBluetooth(pagedata, headerdata);
                }
             }
          }
@@ -317,7 +317,7 @@ void processControlMessage(byte *message, int messageSize)
 /// </summary>
 /// <param name="pagedata">returns the NDEF message payload</param>
 /// <param name="headerdata">returns the NDEF meassage header</param>
-void WriteMessageToSerial(uint8_t *pagedata, uint8_t *headerdata)
+void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
    // return all collected bytes
    // Serial.print(SKF_NTAG_PREFIX);

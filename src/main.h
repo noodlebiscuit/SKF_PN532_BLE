@@ -168,7 +168,7 @@ void onBLEConnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
 
-void WriteMessageToSerial(uint8_t *, uint8_t *);
+void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 
 /// <summary>
 /// Appends a received NDEF record to an existing NDEF message
