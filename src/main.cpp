@@ -51,7 +51,7 @@ unsigned long currentTime = 0;
 bool _commandReceived = false;
 
 // block access to the reader hardware?
-bool _blockReader = false;
+volatile bool _blockReader = false;
 
 // references the UID from the TAG to block multiple reads
 uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -79,10 +79,10 @@ void setupBLE()
 
    // Create BLE service and characteristics.
    BLE.setLocalName(nameOfPeripheral);
-   BLE.setAdvertisedService(shakerControlService);
-   shakerControlService.addCharacteristic(rxChar);
-   shakerControlService.addCharacteristic(txChar);
-   BLE.addService(shakerControlService);
+   BLE.setAdvertisedService(nearFieldService);
+   nearFieldService.addCharacteristic(rxChar);
+   nearFieldService.addCharacteristic(txChar);
+   BLE.addService(nearFieldService);
 
    // Bluetooth LE connection handlers.
    BLE.setEventHandler(BLEConnected, onBLEConnected);
@@ -103,7 +103,7 @@ void setupBLE()
       Serial.print("MAC: ");
       Serial.println(BLE.address());
       Serial.print("Service UUID: ");
-      Serial.println(shakerControlService.uuid());
+      Serial.println(nearFieldService.uuid());
       Serial.print("rxCharacteristic UUID: ");
       Serial.println(uuidOfRxData);
       Serial.print("txCharacteristics UUID: ");
@@ -241,7 +241,7 @@ void ConnectToReader(void)
    if (!_blockReader)
    {
       uint8_t pagedata[TOTAL_BLOCKS * BYTES_PER_BLOCK];
-      uint8_t headerdata[16];
+      uint8_t headerdata[BLOCK_SIZE_BLE];
 
       // read the card
       uint8_t uidLength = Read_PN532(pagedata, headerdata);
@@ -312,58 +312,7 @@ void processControlMessage(byte *message, int messageSize)
 {
 }
 
-/// <summary>
-/// Writes the NDEF contents of a card to the serial port
-/// </summary>
-/// <param name="pagedata">returns the NDEF message payload</param>
-/// <param name="headerdata">returns the NDEF meassage header</param>
-void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
-{
-   // write the header block
-   txChar.writeValue(headerdata, 16);
 
-   // what is the total message size in bytes?
-   int message_length = pagedata[1] + 3;
-   Serial.println(message_length);
-
-   // reset the page index
-   int index = 0;
-
-   // write out each block of the received payload
-   while (message_length >= 0)
-   {
-      delayMicroseconds(50000);
-      if (message_length >= 16)
-      {
-         txChar.writeValue(pagedata + (index * 16), 16);
-         index++;
-      }
-      else
-      {
-         txChar.writeValue(pagedata + (index * 16), message_length + 1);
-      }
-      message_length -= 16;
-   }
-}
-
-void PublishPayloadToBluetooth(NDEF_Message message, uint8_t *headerdata)
-{
-   uint8_t headerdataX[32];
-
-   // write the header block
-   txChar.writeValue(headerdata, 16);
-
-   // what is the total message size in bytes?
-   int message_length = message.getRecordCount();
-   Serial.println(message_length);
-
-   for (int i = 0; i < message_length; ++i)
-   {
-      NDEF_Record record = message.getRecord(i);
-      record.getPayload(headerdataX);
-      txChar.writeValue(headerdataX, record.getPayloadLength());
-   }
-}
 
 /// <summary>
 /// Writes the NDEF contents of a card to the serial port
@@ -432,6 +381,47 @@ uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
 
    // return the number UID bytes
    return uidLength;
+}
+
+
+/// <summary>
+/// Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// </summary>
+/// <param name="pagedata">raw NDEF message payload</param>
+/// <param name="headerdata">NDEF meassage header with UUID</param>
+void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _blockReader = true;
+
+   // write the header block
+   txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
+
+   // what is the total message size in bytes?
+   int message_length = pagedata[1] + 3;
+   Serial.println(message_length);
+
+   // reset the page index
+   int index = 0;
+
+   // write out each block of the received payload
+   while (message_length >= 0)
+   {
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      if (message_length >= BLOCK_SIZE_BLE)
+      {
+         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
+         index++;
+      }
+      else
+      {
+         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length + 1);
+      }
+      message_length -= BLOCK_SIZE_BLE;
+   }
+
+   // release the blocker
+   _blockReader = false;
 }
 
 // ============================================================================
