@@ -18,7 +18,7 @@ using namespace std::chrono;
 
 //-----------------------------------------------------------------------------
 
-const char *nameOfPeripheral = "Portable Shaker";
+const char *nameOfPeripheral = "Bluetooth NFC reader";
 const char *uuidOfService = "0000181a-0000-1000-8000-00805f9b34fb"; // environmental sensing
 const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";	// measurement data
 const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";	// configuration data (JSON)
@@ -62,6 +62,8 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define CMWR3_RECORDS 12		// number of NDEF records in a CMWR 3 sensor
 #define SERIAL_PORT_BYTE 3		// which byte position in the NFC response references the COM port
 #define PLEASE_WAIT 0x2e		// full stop character
+
+#define TICK_RATE_MS 200ms      // update rate for the mbed timer 
 
 // ============================================================================
 
@@ -165,6 +167,8 @@ void onBLEDisconnected(BLEDevice);
 void onBLEConnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
+
+void WriteMessageToSerial(uint8_t *, uint8_t *);
 
 /// <summary>
 /// Appends a received NDEF record to an existing NDEF message
