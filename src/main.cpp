@@ -328,20 +328,38 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
    // reset the page index
    int index = 0;
-   
+
    // write out each block of the received payload
-   while (message_length >= TX_BUFFER_SIZE)
+   while (message_length >= 16)
    {
-      message_length -= TX_BUFFER_SIZE;
-      if (message_length >= TX_BUFFER_SIZE)
+      delayMicroseconds(100000);
+      if (message_length >= 16)
       {
-         txChar.writeValue(pagedata + (index * TX_BUFFER_SIZE), TX_BUFFER_SIZE);
+         txChar.writeValue(pagedata + (index * 16), 16);
          index++;
       }
-      else
-      {
-         txChar.writeValue(pagedata + (index * TX_BUFFER_SIZE), message_length);
-      }
+      message_length -= 16;
+   }
+
+   txChar.writeValue(pagedata + (index * 16), message_length);
+}
+
+void PublishPayloadToBluetooth(NDEF_Message message, uint8_t *headerdata)
+{
+   uint8_t headerdataX[32];
+
+   // write the header block
+   txChar.writeValue(headerdata, 16);
+
+   // what is the total message size in bytes?
+   int message_length = message.getRecordCount();
+   Serial.println(message_length);
+
+   for (int i = 0; i < message_length; ++i)
+   {
+      NDEF_Record record = message.getRecord(i);
+      record.getPayload(headerdataX);
+      txChar.writeValue(headerdataX, record.getPayloadLength());
    }
 }
 
