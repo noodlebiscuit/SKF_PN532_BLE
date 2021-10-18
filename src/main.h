@@ -167,7 +167,6 @@ void onBLEDisconnected(BLEDevice);
 void onBLEConnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
-
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 
 /// <summary>

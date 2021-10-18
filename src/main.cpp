@@ -319,15 +319,30 @@ void processControlMessage(byte *message, int messageSize)
 /// <param name="headerdata">returns the NDEF meassage header</param>
 void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
-   // return all collected bytes
-   // Serial.print(SKF_NTAG_PREFIX);
-   // Serial.write(headerdata, 16);
-   Serial.write(pagedata, pagedata[1] + 3);
-   // Serial.println(SKF_NTAG_SUFFIX);
-
+   // write the header block
    txChar.writeValue(headerdata, 16);
+
+   // what is the total message size in bytes?
    int message_length = pagedata[1] + 3;
-   txChar.writeValue(pagedata, message_length);
+   Serial.println(message_length);
+
+   // reset the page index
+   int index = 0;
+   
+   // write out each block of the received payload
+   while (message_length >= TX_BUFFER_SIZE)
+   {
+      message_length -= TX_BUFFER_SIZE;
+      if (message_length >= TX_BUFFER_SIZE)
+      {
+         txChar.writeValue(pagedata + (index * TX_BUFFER_SIZE), TX_BUFFER_SIZE);
+         index++;
+      }
+      else
+      {
+         txChar.writeValue(pagedata + (index * TX_BUFFER_SIZE), message_length);
+      }
+   }
 }
 
 /// <summary>
