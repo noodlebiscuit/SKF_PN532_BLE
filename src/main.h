@@ -41,10 +41,7 @@ BLEService nearFieldService(uuidOfService);
 BLECharacteristic rxChar(uuidOfRxData, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
 BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 
-// RX / TX Characteristics for SINGLE BYTE transfer (not used)
-// BLEByteCharacteristic txChar(uuidOfTxData, BLERead | BLENotify | BLEBroadcast);
-
-//-----------------------------------------------------------------------------
+//------------------------------------------------------------------------------------------------
 
 #define UID_LENGTH 7			// byte size of NTAG UID
 #define BLOCK_SIZE 16			// block size in bytes
@@ -66,27 +63,27 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define BLOCK_WAIT_BLE 50000	// number of uS between each BLE transmit packet
 #define TICK_RATE_MS 200ms      // update rate for the mbed timer 
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 #define NTAG_IC_TYPE 12				 // NTAG byte which describes the actual card type
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16	 // how many pages should be cleared by default before a write action
 #define NTAG_MAX_RECORD_BYTES 24	 //	maximum number of characters per NDEF record
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 #define HARDWARE_IDENTIFIER "SKF_INSIGHT_RAIL" // hardware identifier flag
 #define SKF_NTAG_PREFIX "<<-"				   // starting brace for valid NDEF payload
 #define SKF_NTAG_SUFFIX "->>"				   // ending brace for valid NDEF payload
 #define INVALID_NDEF "INVALID NDEF RECORD"	   // no valid NDEF records could be found
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 #define NTAG_213_IC 0x12 // byte code (payload[1]) that identifies and NTAG-213 card
 #define NTAG_215_IC 0x3e // byte code (payload[1]) that identifies and NTAG-215 card
 #define NTAG_216_IC 0x6d // byte code (payload[1]) that identifies and NTAG-216 card
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 #define PN532_SCK (13)	// SPI pin SCLK
 #define PN532_MISO (12) // SPI pin MISO
@@ -96,54 +93,28 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define GPIO_PIN_3 3 // tacho write pin
 #define GPIO_PIN_4 4 // BLE connected LED pin
 
-// DEBUG CONTROL **************************************************************
+//------------------------------------------------------------------------------------------------
 
 #define IS_DEGUG true // returns serial debug data
 
 // configure and initialise the NFC reader
 Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 byte READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 byte AKN[3] = {0x00, 0x0d, 0x0a};
 
-// ============================================================================
-
-byte NFCN[6] = {0x4e, 0x46, 0x43, 0x00, 0x0d, 0x0a}; // NFC response payload for an ACKN (with serial port no.)
-
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
 uint8_t NDEF_EN_RECORD_EXTRA_PAGE_BYTES = 0x05;
 uint8_t NDEF_EN_RECORD_TNF = 0x03;
 uint8_t INVALID_UID = 0xff;
 
-// ============================================================================
-
-/// <summary>
-/// Describes each of the supported card types
-/// </summary>
-enum IC
-{
-	NDEF_213,
-	NDEF_215,
-	NDEF_216
-};
-
-// ============================================================================
-
-/// <summary>
-/// INTERUPT SERVICE ROUTINE
-/// </summary>
-void AtTime(void);
-
-/// <summary>
-/// PROCESS ISR
-/// </summary>
-void processSpiTicks();
+//------------------------------------------------------------------------------------------------
 
 /// <summary>
 /// MBED* We attach an interrupt to GPIO PIN 3 here
@@ -155,10 +126,7 @@ DigitalOut SetTachoLevel(digitalPinToPinName(GPIO_PIN_3));
 /// </summary>
 DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
-/// <summary>
-/// MBED* Set direct write access to GPIO PIN 2 here
-/// </summary>
-InterruptIn OnClockTick(digitalPinToPinName(GPIO_PIN_2));
+//------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
 
@@ -169,12 +137,11 @@ void onBLEConnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
-void PublishPayloadToBluetooth(NDEF_Message, uint8_t *);
 
 /// <summary>
-/// Appends a received NDEF record to an existing NDEF message
+/// INTERUPT SERVICE ROUTINE
 /// </summary>
-void AddNdefRecordToMessage(void);
+void AtTime(void);
 
 /// <summary>
 /// Writes the NDEF contents of a card to the serial port
@@ -213,4 +180,4 @@ void FlashLED(int, int);
 void AtTime(void);
 #pragma endregion
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------

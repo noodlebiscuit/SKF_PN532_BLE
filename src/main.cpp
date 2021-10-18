@@ -29,19 +29,8 @@
 // MBED RTOS timer
 //------------------------------------------------------------------------------------------------
 Ticker timer;
-
+volatile bool timerEvent = false;
 //------------------------------------------------------------------------------------------------
-// RTOS tick flag. When set TRUE the super-loop will process SPI events
-//------------------------------------------------------------------------------------------------
-volatile bool spiTimerEvent = false;
-volatile int frequency = 0;
-volatile int counter = 0;
-volatile bool countUp = true;
-volatile int tickCounter = 0;
-volatile bool sleepMode = true;
-volatile int tachoDivider = 10;
-
-// ============================================================================
 
 #pragma region PRIVATE MEMBERS
 // current time (for TIMEOUT management)
@@ -61,14 +50,11 @@ NDEF_Message *ndef_message = new NDEF_Message();
 
 // enable TIMEOUTS (for WRITE or ONE SHOT)?
 volatile bool _enableTimeouts = false;
-
-// MBED RTOS timer
-// mbed::Ticker timer;
 #pragma endregion
 
-// ============================================================================
+//------------------------------------------------------------------------------------------------
 
-#pragma region MAIN APPLICATION LOOP
+#pragma region BLUETOOTH LOW ENERGY SUPPORT
 /// <summary>
 /// Configure the BLE hardware
 /// </summary>
@@ -113,7 +99,7 @@ void setupBLE()
 }
 
 /// <summary>
-/// A BLE device has connected to our sensor
+/// A BLE device has connected to our sensor - illuminate the connection LED
 /// </summary>
 /// <param name="central">BLE device</param>
 void onBLEConnected(BLEDevice central)
@@ -122,7 +108,7 @@ void onBLEConnected(BLEDevice central)
 }
 
 /// <summary>
-/// A BLE device has just disconnected from our sensor
+/// A BLE device has just disconnected from our sensor - power off the connection LED
 /// </summary>
 /// <param name="central">BLE device</param>
 void onBLEDisconnected(BLEDevice central)
@@ -137,18 +123,12 @@ void onBLEDisconnected(BLEDevice central)
 /// <param name="characteristic">BLE characteristic referenced</param>
 void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 {
-   // disable the TACHO tick interrupts
-   OnClockTick.disable_irq();
-
    // read and cache the received BLE message
    byte tmp[RX_BUFFER_SIZE];
    int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
 
    // process the received BLE message
    processControlMessage(tmp, dataLength);
-
-   // re-enable the TACHO tick interrupts
-   OnClockTick.enable_irq();
 }
 
 /// <summary>
@@ -166,6 +146,22 @@ void startBLE()
          ;
    }
 }
+
+/// <summary>
+/// Process any received ProtoBuf message payload
+/// </summary>
+/// <param name="message">pointer to the received PB message byte array</param>
+/// <param name="messageSize">number of bytes in the PB message</param>
+void processControlMessage(byte *message, int messageSize)
+{
+}
+
+
+
+
+
+
+
 
 /// <summary>
 /// Setup the ARDUINO
@@ -211,9 +207,9 @@ void loop(void)
       while (central.connected())
       {
          // we still need to process SPI ticks
-         if (spiTimerEvent)
+         if (timerEvent)
          {
-            spiTimerEvent = false;
+            timerEvent = false;
             ConnectToReader();
          }
       }
@@ -226,7 +222,7 @@ void loop(void)
 /// </summary>
 void AtTime()
 {
-   spiTimerEvent = true;
+   timerEvent = true;
 }
 
 // ============================================================================
@@ -301,15 +297,6 @@ void ConnectToReader(void)
          _headerdata[i] = 0x00;
       }
    }
-}
-
-/// <summary>
-/// Process any received ProtoBuf message payload
-/// </summary>
-/// <param name="message">pointer to the received PB message byte array</param>
-/// <param name="messageSize">number of bytes in the PB message</param>
-void processControlMessage(byte *message, int messageSize)
-{
 }
 
 
