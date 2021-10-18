@@ -330,18 +330,20 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    int index = 0;
 
    // write out each block of the received payload
-   while (message_length >= 16)
+   while (message_length >= 0)
    {
-      delayMicroseconds(100000);
+      delayMicroseconds(50000);
       if (message_length >= 16)
       {
          txChar.writeValue(pagedata + (index * 16), 16);
          index++;
       }
+      else
+      {
+         txChar.writeValue(pagedata + (index * 16), message_length + 1);
+      }
       message_length -= 16;
    }
-
-   txChar.writeValue(pagedata + (index * 16), message_length);
 }
 
 void PublishPayloadToBluetooth(NDEF_Message message, uint8_t *headerdata)
