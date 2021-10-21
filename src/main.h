@@ -60,7 +60,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define SERIAL_PORT_BYTE 3		// which byte position in the NFC response references the COM port
 #define PLEASE_WAIT 0x2e		// full stop character
 #define BLOCK_SIZE_BLE 16		// block size in bytes
-#define BLOCK_WAIT_BLE 50000	// number of uS between each BLE transmit packet
+#define BLOCK_WAIT_BLE 20000	// number of uS between each BLE transmit packet
 #define TICK_RATE_MS 200ms      // update rate for the mbed timer 
 
 //------------------------------------------------------------------------------------------------
@@ -106,7 +106,7 @@ byte READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
-byte AKN[3] = {0x00, 0x0d, 0x0a};
+byte ACK[4] = {0x00, 0x00, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 

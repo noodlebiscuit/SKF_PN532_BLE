@@ -17,9 +17,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Description: main.cpp
- *   This application was created by SKF UK Ltd for use with SKF INSIGHT RAIL. It is not intended
- *   for public release, primarily as its functionality is based on private (internal SKF testing)
- *   of INSIGHT sensor commissioning
+ * Main NFC reader for the Nordic NRF-52840 Microcontroller
  *
  ***************************************************************************************************/
 
@@ -153,6 +151,7 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 /// <param name="messageSize">number of bytes in the PB message</param>
 void processControlMessage(byte *message, int messageSize)
 {
+   Serial.write(message, messageSize);
 }
 
 /// <summary>
@@ -190,6 +189,10 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       }
       message_length -= BLOCK_SIZE_BLE;
    }
+
+   // send the payload terminator
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(ACK, 4);
 
    // release the blocker
    _blockReader = false;
