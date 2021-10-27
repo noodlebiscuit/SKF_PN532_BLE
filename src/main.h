@@ -20,8 +20,8 @@ using namespace std::chrono;
 
 const char *nameOfPeripheral = "SKF NFC Reader";
 const char *uuidOfService = "0000181a-0000-1000-8000-00805f9b34fb"; // environmental sensing
-const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";	// measurement data
-const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";	// configuration data (JSON)
+const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";  // measurement data
+const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";  // configuration data (JSON)
 
 // Setup the incoming data characteristic (RX).
 const int RX_BUFFER_SIZE = 32;
@@ -43,39 +43,39 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define UID_LENGTH 7			// byte size of NTAG UID
-#define BLOCK_SIZE 16			// block size in bytes
-#define BLOCK_COUNT 16			// number of blocks to read from the card
-#define TOTAL_BLOCKS 86			// total number of NDEF blocks
-#define BYTES_PER_BLOCK 4		// number of bytes per block
+#define UID_LENGTH 7            // byte size of NTAG UID
+#define BLOCK_SIZE 16           // block size in bytes
+#define BLOCK_COUNT 16          // number of blocks to read from the card
+#define TOTAL_BLOCKS 86         // total number of NDEF blocks
+#define BYTES_PER_BLOCK 4       // number of bytes per block
 #define SERIAL_BAUD_RATE 115200 // serial port baud rate
-#define COMMS_LED 7				// Configurable
-#define WAIT_FOR_CARD_MS 100	// how long to wait for a card before continuing
-#define COMMAND_BYTES 6			// how many NDEF records should we ordinarily expect?
-#define SYSTEM_TIMEOUT 30000	// reset system to default after this mS
-#define COMMAND_TIMEOUT 1000	// reset system to default after this mS
-#define NEXT_SCAN_DELAY 1000	// how long to wait before the next scan
-#define CMWR2_RECORDS 9			// number of NDEF records in a CMWR 2 sensor
-#define CMWR3_RECORDS 12		// number of NDEF records in a CMWR 3 sensor
-#define SERIAL_PORT_BYTE 3		// which byte position in the NFC response references the COM port
-#define PLEASE_WAIT 0x2e		// full stop character
-#define BLOCK_SIZE_BLE 16		// block size in bytes
-#define BLOCK_WAIT_BLE 20000	// number of uS between each BLE transmit packet
-#define TICK_RATE_MS 200ms      // update rate for the mbed timer 
+#define COMMS_LED 7             // Configurable
+#define WAIT_FOR_CARD_MS 100    // how long to wait for a card before continuing
+#define COMMAND_BYTES 6         // how many NDEF records should we ordinarily expect?
+#define SYSTEM_TIMEOUT 30000    // reset system to default after this mS
+#define COMMAND_TIMEOUT 1000    // reset system to default after this mS
+#define NEXT_SCAN_DELAY 1000    // how long to wait before the next scan
+#define CMWR2_RECORDS 9         // number of NDEF records in a CMWR 2 sensor
+#define CMWR3_RECORDS 12        // number of NDEF records in a CMWR 3 sensor
+#define SERIAL_PORT_BYTE 3      // which byte position in the NFC response references the COM port
+#define PLEASE_WAIT 0x2e        // full stop character
+#define BLOCK_SIZE_BLE 16       // block size in bytes
+#define BLOCK_WAIT_BLE 20000    // number of uS between each BLE transmit packet
+#define TICK_RATE_MS 200ms      // update rate for the mbed timer
 
 //------------------------------------------------------------------------------------------------
 
-#define NTAG_IC_TYPE 12				 // NTAG byte which describes the actual card type
+#define NTAG_IC_TYPE 12              // NTAG byte which describes the actual card type
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
-#define NTAG_DEFAULT_PAGE_CLEAR 16	 // how many pages should be cleared by default before a write action
-#define NTAG_MAX_RECORD_BYTES 24	 //	maximum number of characters per NDEF record
+#define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
+#define NTAG_MAX_RECORD_BYTES 24     //	maximum number of characters per NDEF record
 
 //------------------------------------------------------------------------------------------------
 
 #define HARDWARE_IDENTIFIER "SKF_INSIGHT_RAIL" // hardware identifier flag
-#define SKF_NTAG_PREFIX "<<-"				   // starting brace for valid NDEF payload
-#define SKF_NTAG_SUFFIX "->>"				   // ending brace for valid NDEF payload
-#define INVALID_NDEF "INVALID NDEF RECORD"	   // no valid NDEF records could be found
+#define SKF_NTAG_PREFIX "<<-"                  // starting brace for valid NDEF payload
+#define SKF_NTAG_SUFFIX "->>"                  // ending brace for valid NDEF payload
+#define INVALID_NDEF "INVALID NDEF RECORD"     // no valid NDEF records could be found
 
 //------------------------------------------------------------------------------------------------
 
@@ -85,13 +85,13 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define PN532_SCK (13)	// SPI pin SCLK
+#define PN532_SCK (13)  // SPI pin SCLK
 #define PN532_MISO (12) // SPI pin MISO
 #define PN532_MOSI (11) // SPI pin MOSI
-#define PN532_SS (10)	// SPI pin SS
-#define GPIO_PIN_2 2 // pin we read the function generator SQR wave on
-#define GPIO_PIN_3 3 // tacho write pin
-#define GPIO_PIN_4 4 // BLE connected LED pin
+#define PN532_SS (10)   // SPI pin SS
+#define GPIO_PIN_2 2    // pin we read the function generator SQR wave on
+#define GPIO_PIN_3 3    // tacho write pin
+#define GPIO_PIN_4 4    // BLE connected LED pin
 
 //------------------------------------------------------------------------------------------------
 
@@ -106,7 +106,12 @@ byte READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
-byte ACK[4] = {0x00, 0x00, 0x0d, 0x0a};
+uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a}; // End of record payload
+uint8_t CONTINUOUS_READ[2] = {0x00, 0x00}; // continuous read of detected TAG
+uint8_t SINGLE_READ[2] = {0x00, 0x01};     // read detected TAG once on each receipt of this command
+uint8_t ADD_RECORD[2] = {0x00, 0x02};      // add a single NDEF message to the the local cache
+uint8_t ERASE_TAG[2] = {0x00, 0x03};       // clear all TAG contents
+uint8_t UPDATE_TAG[2] = {0x00, 0x04};      // publish all cached NDEF messages to the TAG
 
 //------------------------------------------------------------------------------------------------
 
@@ -128,8 +133,21 @@ DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 //------------------------------------------------------------------------------------------------
 
-#pragma region METHOD PROTOTYPES
+/// <summary>
+/// Describes each of the commands that this reader supports
+/// </summary>
+enum PN532_command : uint8_t
+{
+    ReadContinuous,
+    ReadOnce,
+    ClearTag,
+    AddNdefRecord,
+    WriteNdefMessage,
+};
 
+//------------------------------------------------------------------------------------------------
+
+#pragma region METHOD PROTOTYPES
 void startBLE();
 void setupBLE();
 void onBLEDisconnected(BLEDevice);
@@ -137,6 +155,8 @@ void onBLEConnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
+
+
 
 /// <summary>
 /// INTERUPT SERVICE ROUTINE
@@ -150,6 +170,13 @@ void AtTime(void);
 void ConnectToReader(void);
 
 /// <summary>
+/// Clear TAG contents or write complete NDEF message
+/// </summary>
+/// <param name="headerdata">reference to the read NDEF message header</param>
+/// <param name="pagedata">reference to the read NDEF message body</param>
+void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata);
+
+/// <summary>
 /// Writes the NDEF contents of a card to the serial port
 /// </summary>
 /// <param name="pagedata">returns the NDEF message payload</param>
@@ -161,6 +188,12 @@ uint8_t Read_PN532(uint8_t *, uint8_t *);
 /// </summary>
 /// <param name="byteCount">number of message bytes</param>
 int GetPageCount(int);
+
+/// <summary>
+/// Get the received command type
+/// </summary>
+/// <param name="buffer">byte array to search against</param>
+PN532_command GetCommandType(uint8_t *buffer);
 
 /// <summary>
 /// Toggle the LED ON or OFF every time this method is called

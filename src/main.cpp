@@ -33,11 +33,14 @@ volatile bool timerEvent = false;
 // current time (for TIMEOUT management)
 unsigned long currentTime = 0;
 
-// command been received over serial port?
-bool _commandReceived = false;
+// what is the reader required to do?
+PN532_command _command = ReadContinuous;
 
 // block access to the reader hardware?
 volatile bool _blockReader = false;
+
+// whwn set true, we need to block all other I/O activites
+volatile bool _readerBusy = false;
 
 // references the UID from the TAG to block multiple reads
 uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
@@ -77,22 +80,19 @@ void setupBLE()
    // Let's tell devices about us.
    BLE.advertise();
 
-   if (IS_DEGUG)
-   {
-      // Print out full UUID and MAC address
-      Serial.println("Peripheral advertising info: ");
-      Serial.print("Name: ");
-      Serial.println(nameOfPeripheral);
-      Serial.print("MAC: ");
-      Serial.println(BLE.address());
-      Serial.print("Service UUID: ");
-      Serial.println(nearFieldService.uuid());
-      Serial.print("rxCharacteristic UUID: ");
-      Serial.println(uuidOfRxData);
-      Serial.print("txCharacteristics UUID: ");
-      Serial.println(uuidOfTxData);
-      Serial.println("Bluetooth device active, waiting for connections...");
-   }
+   // Print out full UUID and MAC address
+   Serial.println("Peripheral advertising info: ");
+   Serial.print("Name: ");
+   Serial.println(nameOfPeripheral);
+   Serial.print("MAC: ");
+   Serial.println(BLE.address());
+   Serial.print("Service UUID: ");
+   Serial.println(nearFieldService.uuid());
+   Serial.print("rxCharacteristic UUID: ");
+   Serial.println(uuidOfRxData);
+   Serial.print("txCharacteristics UUID: ");
+   Serial.println(uuidOfTxData);
+   Serial.println("Bluetooth device active, waiting for connections...");
 }
 
 /// <summary>
@@ -118,6 +118,8 @@ void startBLE()
 void onBLEConnected(BLEDevice central)
 {
    SetConnectedToBLE = HIGH;
+   _readerBusy = false;
+   _command = ReadContinuous;
 }
 
 /// <summary>
@@ -151,7 +153,38 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 /// <param name="messageSize">number of bytes in the PB message</param>
 void processControlMessage(byte *message, int messageSize)
 {
-   Serial.write(message, messageSize);
+   // process any received payload
+   _command = GetCommandType(message);
+
+   // OK, and what's expected of us here?
+   switch (_command)
+   {
+   case ReadContinuous:
+      _blockReader = false; // reset any existing read blocks
+      Serial.println("Read continuous");
+      break;
+
+   case ReadOnce:
+      _blockReader = false; // reset any existing read blocks
+      Serial.println("Read once");
+      break;
+
+   case ClearTag:
+      Serial.println("Erase card contents");
+      break;
+
+   case AddNdefRecord:
+      Serial.println("Add single record to cache");
+      break;
+
+   case WriteNdefMessage:
+      Serial.println("Publish cache to card");
+      break;
+
+   default:
+      Serial.println("Unknown");
+      break;
+   }
 }
 
 /// <summary>
@@ -162,7 +195,7 @@ void processControlMessage(byte *message, int messageSize)
 void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
    // make sure we don't have any NFC scanning overlaps here
-   _blockReader = true;
+   _readerBusy = true;
 
    // write the header block
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
@@ -192,10 +225,10 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
    // send the payload terminator
    delayMicroseconds(BLOCK_WAIT_BLE);
-   txChar.writeValue(ACK, 4);
+   txChar.writeValue(EOR, 4);
 
    // release the blocker
-   _blockReader = false;
+   _readerBusy = false;
 }
 #pragma endregion
 
@@ -274,7 +307,7 @@ void AtTime()
 void ConnectToReader(void)
 {
    // if the reader is blocked, then bypass this method completely
-   if (!_blockReader)
+   if (!(_blockReader | _readerBusy))
    {
       uint8_t pagedata[TOTAL_BLOCKS * BYTES_PER_BLOCK];
       uint8_t headerdata[BLOCK_SIZE_BLE];
@@ -306,9 +339,6 @@ void ConnectToReader(void)
                _headerdata[i] = uidRecord[i];
             }
 
-            // reset any command that might have been received
-            _commandReceived = false;
-
             // does this message contain a valid NDEF record?
             if (pagedata[0] == NDEF_EN_RECORD_TNF)
             {
@@ -325,6 +355,16 @@ void ConnectToReader(void)
                   PublishPayloadToBluetooth(pagedata, headerdata);
                }
             }
+            else
+            {
+               Serial.println(INVALID_NDEF);
+            }
+
+            // clear TAG contents or write complete NDEF message
+            ExecuteReaderCommands(headerdata, pagedata);
+
+            // reset any command that might have been received
+            _command = ReadContinuous;
          }
          // release this object and leave method right here!
          delete[] uidRecord;
@@ -407,11 +447,83 @@ uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
    // return the number UID bytes
    return uidLength;
 }
+
+/// <summary>
+/// Clear TAG contents or write complete NDEF message
+/// </summary>
+/// <param name="headerdata">reference to the read NDEF message header</param>
+/// <param name="pagedata">reference to the read NDEF message body</param>
+void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
+{
+   // is this an NTAG compatible card?
+   bool isNTAG = ((pagedata[1] == NTAG_213_IC) | (pagedata[1] == NTAG_215_IC) | (pagedata[1] == NTAG_216_IC));
+
+   // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
+   if (_command == ClearTag)
+   {
+      _blockReader = true;
+      Serial.println(">>>> ERASING TAG >>>>>");
+      // ClearTheCard(headerdata);
+   }
+   else if (_command == WriteNdefMessage)
+   {
+      _blockReader = true;
+      Serial.println(">>>> UPDATING CARD >>>>>");
+      // WriteNdefMessagePayload(headerdata, isNTAG);
+      ndef_message->dropAllRecords();
+   }
+   else if (_command == ReadContinuous)
+   {
+      // for continuous (default) operation, we have to re-enable the reader
+      _blockReader = false;
+      return;
+   }
+   else if (_command == ReadOnce)
+   {
+      // for a read once, we block any further reads right here!
+      _blockReader = true;
+   }
+
+   // force a timeout reset after ONE SECOND
+   currentTime = millis() - (SYSTEM_TIMEOUT - COMMAND_TIMEOUT);
+}
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE SUPPORT METHODS
+/// <summary>
+/// Get the received command type
+/// </summary>
+/// <param name="buffer">byte array to search against</param>
+PN532_command GetCommandType(uint8_t *buffer)
+{
+   if (memcmp(buffer, CONTINUOUS_READ, 2) == 0)
+   {
+      return ReadContinuous;
+   }
+   else if (memcmp(buffer, SINGLE_READ, 2) == 0)
+   {
+      return ReadOnce;
+   }
+   else if (memcmp(buffer, ADD_RECORD, 2) == 0)
+   {
+      return AddNdefRecord;
+   }
+   else if (memcmp(buffer, UPDATE_TAG, 2) == 0)
+   {
+      return WriteNdefMessage;
+   }
+   else if (memcmp(buffer, ERASE_TAG, 2) == 0)
+   {
+      return ClearTag;
+   }
+   else
+   {
+      return ReadContinuous;
+   }
+}
+
 /// <summary>
 /// Toggle the LED ON or OFF every time this method is called
 /// </summary>
