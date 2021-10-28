@@ -146,6 +146,19 @@ void processControlMessage(byte *message, int messageSize);
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 
 /// <summary>
+/// Clears and overwrites the complete contents of the NDEF message block
+/// </summary>
+/// <param name="headerdata">reference to the read NDEF message header</param>
+/// <param name="clearCard">clear card before write action</param>
+void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard);
+
+/// <summary>
+/// How many pages are required to cover all message bytes?
+/// </summary>
+/// <param name="byteCount">number of message bytes</param>
+int getPageCount(int byteCount);
+
+/// <summary>
 /// Appends a received NDEF record to an existing NDEF message
 /// </summary>
 /// <param name="message">pointer to the received command message byte array</param>
