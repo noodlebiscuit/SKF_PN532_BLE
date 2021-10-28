@@ -156,7 +156,12 @@ void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void processControlMessage(byte *message, int messageSize);
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 
-
+/// <summary>
+/// Appends a received NDEF record to an existing NDEF message
+/// </summary>
+/// <param name="message">pointer to the received command message byte array</param>
+/// <param name="messageSize">number of bytes in the command message</param>
+void AddNdefRecordToMessage(byte *message, int messageSize);
 
 /// <summary>
 /// INTERUPT SERVICE ROUTINE

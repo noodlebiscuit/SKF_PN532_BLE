@@ -79,20 +79,6 @@ void setupBLE()
 
    // Let's tell devices about us.
    BLE.advertise();
-
-   // Print out full UUID and MAC address
-   Serial.println("Peripheral advertising info: ");
-   Serial.print("Name: ");
-   Serial.println(nameOfPeripheral);
-   Serial.print("MAC: ");
-   Serial.println(BLE.address());
-   Serial.print("Service UUID: ");
-   Serial.println(nearFieldService.uuid());
-   Serial.print("rxCharacteristic UUID: ");
-   Serial.println(uuidOfRxData);
-   Serial.print("txCharacteristics UUID: ");
-   Serial.println(uuidOfTxData);
-   Serial.println("Bluetooth device active, waiting for connections...");
 }
 
 /// <summary>
@@ -119,6 +105,7 @@ void onBLEConnected(BLEDevice central)
 {
    SetConnectedToBLE = HIGH;
    _readerBusy = false;
+   _blockReader = false;
    _command = ReadContinuous;
 }
 
@@ -174,6 +161,12 @@ void processControlMessage(byte *message, int messageSize)
       break;
 
    case AddNdefRecord:
+      // revert the command to read continuous
+      _command = ReadContinuous;
+      _blockReader = false;
+
+      // process the received message
+      AddNdefRecordToMessage(message, messageSize);
       Serial.println("Add single record to cache");
       break;
 
@@ -458,6 +451,8 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    // is this an NTAG compatible card?
    bool isNTAG = ((pagedata[1] == NTAG_213_IC) | (pagedata[1] == NTAG_215_IC) | (pagedata[1] == NTAG_216_IC));
 
+   Serial.println(isNTAG);
+
    // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
    if (_command == ClearTag)
    {
@@ -486,6 +481,40 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 
    // force a timeout reset after ONE SECOND
    currentTime = millis() - (SYSTEM_TIMEOUT - COMMAND_TIMEOUT);
+}
+
+/// <summary>
+/// Appends a received NDEF record to an existing NDEF message
+/// </summary>
+/// <param name="message">pointer to the received command message byte array</param>
+/// <param name="messageSize">number of bytes in the command message</param>
+void AddNdefRecordToMessage(byte *message, int messageSize)
+{
+   // create a new ndef record string buffer
+   char *ndefRecord = new char[NTAG_MAX_RECORD_BYTES];
+
+   // clear the serial read buffer contents
+   memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
+
+   // strip away the first two command characters
+   uint8_t index = 0;
+   for (int i = 2; i < messageSize; ++i)
+   {
+      ndefRecord[index] = message[i];
+      ++index;
+   }
+
+   // add an NDEF text record to the NDEF message
+   ndef_message->addTextRecord(ndefRecord);
+
+   // post feedback
+   Serial.write(ndefRecord, index);
+
+   // terminate with a CR and LF
+   Serial.write(0x0d);
+   Serial.write(0x0a);
+
+   delete[] ndefRecord;
 }
 #pragma endregion
 
