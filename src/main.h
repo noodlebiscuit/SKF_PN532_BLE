@@ -49,7 +49,6 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define TOTAL_BLOCKS 86         // total number of NDEF blocks
 #define BYTES_PER_BLOCK 4       // number of bytes per block
 #define SERIAL_BAUD_RATE 115200 // serial port baud rate
-#define COMMS_LED 7             // Configurable
 #define WAIT_FOR_CARD_MS 100    // how long to wait for a card before continuing
 #define COMMAND_BYTES 6         // how many NDEF records should we ordinarily expect?
 #define SYSTEM_TIMEOUT 30000    // reset system to default after this mS
@@ -83,15 +82,16 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define PN532_MISO (12) // SPI pin MISO
 #define PN532_MOSI (11) // SPI pin MOSI
 #define PN532_SS (10)   // SPI pin SS
-#define GPIO_PIN_2 2    // pin we read the function generator SQR wave on
-#define GPIO_PIN_3 3    // tacho write pin
 #define GPIO_PIN_4 4    // BLE connected LED pin
+#define COMMS_LED 7     // NFC activity LED
 
 //------------------------------------------------------------------------------------------------
 
 #define IS_DEGUG true // returns serial debug data
 
-// configure and initialise the NFC reader
+//------------------------------------------------------------------------------------------------
+
+// configure and initialise the NFC reader (we use configurable I/O for this)
 Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 
 //------------------------------------------------------------------------------------------------
@@ -114,11 +114,6 @@ uint8_t NDEF_EN_RECORD_TNF = 0x03;
 uint8_t INVALID_UID = 0xff;
 
 //------------------------------------------------------------------------------------------------
-
-/// <summary>
-/// MBED* We attach an interrupt to GPIO PIN 3 here
-/// </summary>
-DigitalOut SetTachoLevel(digitalPinToPinName(GPIO_PIN_3));
 
 /// <summary>
 /// MBED* control the BLE connected pin
