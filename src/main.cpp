@@ -252,6 +252,9 @@ void setup(void)
    // configure board to read RFID tags
    nfc.SAMConfig();
 
+   uint32_t versiondata = nfc.getFirmwareVersion();
+   Serial.print(versiondata);
+
    // lastly we setup the BLE layer
    setupBLE();
 }
@@ -333,7 +336,7 @@ void ConnectToReader(void)
             if (pagedata[0] == NDEF_EN_RECORD_TNF)
             {
                //
-               // we only publish the NDEF data if the current command is either 
+               // we only publish the NDEF data if the current command is either
                // a read continuous or a read just once
                //
                if ((_command == ReadContinuous) | (_command == ReadOnce))
@@ -527,62 +530,62 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
 /// <param name="clearCard">clear card before write action</param>
 void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 {
-	// create the page buffer
-	uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
+   // create the page buffer
+   uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
 
-	// default page clear count
-	int pages = NTAG_DEFAULT_PAGE_CLEAR;
+   // default page clear count
+   int pages = NTAG_DEFAULT_PAGE_CLEAR;
 
-	//
-	// if this is an NTAG card then we need to clear some of the
-	// initial pages before we write back to them.
-	//
-	if (clearCard)
-	{
-		// clear either the default number (16) or all pages on the card
-		for (uint8_t i = 4; i < pages + 4; i++)
-		{
-			memset(pageBuffer, 0, 4);
-			nfc.ntag2xx_WritePage(i, pageBuffer);
-			ToggleLED(true);
-		}
-	}
+   //
+   // if this is an NTAG card then we need to clear some of the
+   // initial pages before we write back to them.
+   //
+   if (clearCard)
+   {
+      // clear either the default number (16) or all pages on the card
+      for (uint8_t i = 4; i < pages + 4; i++)
+      {
+         memset(pageBuffer, 0, 4);
+         nfc.ntag2xx_WritePage(i, pageBuffer);
+         ToggleLED(true);
+      }
+   }
 
-	// how many bytes are now in this new message
-	uint8_t totalBytes = ndef_message->getEncodedSize() + NDEF_EN_RECORD_EXTRA_PAGE_BYTES;
+   // how many bytes are now in this new message
+   uint8_t totalBytes = ndef_message->getEncodedSize() + NDEF_EN_RECORD_EXTRA_PAGE_BYTES;
 
-	// allocate memory for a working buffer
-	byte buffer[totalBytes];
+   // allocate memory for a working buffer
+   byte buffer[totalBytes];
 
-	// ensure all memory is initialised with the value 0x00
-	memset(buffer, 0, totalBytes);
+   // ensure all memory is initialised with the value 0x00
+   memset(buffer, 0, totalBytes);
 
-	// the buffer now contains everything from byte #2 onwards
-	ndef_message->encode(buffer + 2);
+   // the buffer now contains everything from byte #2 onwards
+   ndef_message->encode(buffer + 2);
 
-	// insert the two NTAG header bytes (TNF + total bytes)
-	buffer[0] = NDEF_EN_RECORD_TNF;
-	buffer[1] = (uint8_t)(ndef_message->getEncodedSize());
+   // insert the two NTAG header bytes (TNF + total bytes)
+   buffer[0] = NDEF_EN_RECORD_TNF;
+   buffer[1] = (uint8_t)(ndef_message->getEncodedSize());
 
-	// how many pages will it take to write this to the card?
-	pages = getPageCount(totalBytes);
+   // how many pages will it take to write this to the card?
+   pages = getPageCount(totalBytes);
 
-	// initialse the page indexes
-	uint8_t page = BYTES_PER_BLOCK;
-	uint8_t offset = 0;
+   // initialse the page indexes
+   uint8_t page = BYTES_PER_BLOCK;
+   uint8_t offset = 0;
 
-	// write to each of the required pages
-	for (int i = 0; i < pages; i++)
-	{
-		memcpy(pageBuffer, buffer + offset, BYTES_PER_BLOCK);
-		nfc.ntag2xx_WritePage(page, pageBuffer);
-		++page;
-		offset += BYTES_PER_BLOCK;
-		ToggleLED(true);
-	}
+   // write to each of the required pages
+   for (int i = 0; i < pages; i++)
+   {
+      memcpy(pageBuffer, buffer + offset, BYTES_PER_BLOCK);
+      nfc.ntag2xx_WritePage(page, pageBuffer);
+      ++page;
+      offset += BYTES_PER_BLOCK;
+      ToggleLED(true);
+   }
 
-	// reset the LED
-	ToggleLED(false);
+   // reset the LED
+   ToggleLED(false);
 }
 
 #pragma endregion
@@ -596,15 +599,14 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 /// <param name="byteCount">number of message bytes</param>
 int getPageCount(int byteCount)
 {
-	int pages = byteCount / BYTES_PER_BLOCK;
-	int pagesModulo = byteCount % BYTES_PER_BLOCK;
-	if (pagesModulo > 0)
-	{
-		++pages;
-	}
-	return pages;
+   int pages = byteCount / BYTES_PER_BLOCK;
+   int pagesModulo = byteCount % BYTES_PER_BLOCK;
+   if (pagesModulo > 0)
+   {
+      ++pages;
+   }
+   return pages;
 }
-
 
 /// <summary>
 /// Reset the reader after RTOS timeout
