@@ -104,9 +104,7 @@ void startBLE()
 void onBLEConnected(BLEDevice central)
 {
    SetConnectedToBLE = HIGH;
-   _readerBusy = false;
-   _blockReader = false;
-   _command = ReadContinuous;
+   ResetReader();
 }
 
 /// <summary>
@@ -244,7 +242,6 @@ void setup(void)
 
    // initialise the serial port
    Serial.begin(SERIAL_BAUD_RATE);
-   Serial.println(F(HARDWARE_IDENTIFIER));
 
    // set the timeout value
    timer.attach(&AtTime, TICK_RATE_MS);
@@ -490,6 +487,12 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 /// <param name="messageSize">number of bytes in the command message</param>
 void AddNdefRecordToMessage(byte *message, int messageSize)
 {
+   // ensure the message size does not exceed the set limit
+   if (messageSize > NTAG_MAX_RECORD_BYTES + 2)
+   {
+      messageSize = NTAG_MAX_RECORD_BYTES + 2;
+   }
+
    // create a new ndef record string buffer
    char *ndefRecord = new char[NTAG_MAX_RECORD_BYTES];
 
@@ -504,15 +507,18 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
       ++index;
    }
 
-   // add an NDEF text record to the NDEF message
-   ndef_message->addTextRecord(ndefRecord);
+   if (ndef_message->getRecordCount() <= 12)
+   {
+      // add an NDEF text record to the NDEF message
+      ndef_message->addTextRecord(ndefRecord);
 
-   // post feedback
-   Serial.write(ndefRecord, index);
+      // post feedback
+      Serial.write(ndefRecord, index);
 
-   // terminate with a CR and LF
-   Serial.write(0x0d);
-   Serial.write(0x0a);
+      // terminate with a CR and LF
+      Serial.write(0x0d);
+      Serial.write(0x0a);
+   }
 
    delete[] ndefRecord;
 }
@@ -521,6 +527,17 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE SUPPORT METHODS
+
+/// <summary>
+/// Reset the reader after RTOS timeout
+/// </summary>
+void ResetReader()
+{
+   _readerBusy = false;
+   _blockReader = false;
+   _command = ReadContinuous;
+}
+
 /// <summary>
 /// Get the received command type
 /// </summary>

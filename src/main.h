@@ -55,12 +55,9 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define SYSTEM_TIMEOUT 30000    // reset system to default after this mS
 #define COMMAND_TIMEOUT 1000    // reset system to default after this mS
 #define NEXT_SCAN_DELAY 1000    // how long to wait before the next scan
-#define CMWR2_RECORDS 9         // number of NDEF records in a CMWR 2 sensor
-#define CMWR3_RECORDS 12        // number of NDEF records in a CMWR 3 sensor
-#define SERIAL_PORT_BYTE 3      // which byte position in the NFC response references the COM port
 #define PLEASE_WAIT 0x2e        // full stop character
 #define BLOCK_SIZE_BLE 16       // block size in bytes
-#define BLOCK_WAIT_BLE 20000    // number of uS between each BLE transmit packet
+#define BLOCK_WAIT_BLE 20000    // wait 20ms between each BLE transmit packet
 #define TICK_RATE_MS 200ms      // update rate for the mbed timer
 
 //------------------------------------------------------------------------------------------------
@@ -72,9 +69,6 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define HARDWARE_IDENTIFIER "SKF_INSIGHT_RAIL" // hardware identifier flag
-#define SKF_NTAG_PREFIX "<<-"                  // starting brace for valid NDEF payload
-#define SKF_NTAG_SUFFIX "->>"                  // ending brace for valid NDEF payload
 #define INVALID_NDEF "INVALID NDEF RECORD"     // no valid NDEF records could be found
 
 //------------------------------------------------------------------------------------------------
@@ -216,6 +210,11 @@ void FlashLED(int, int);
 /// INTERUPT SERVICE ROUTINE
 /// </summary>
 void AtTime(void);
+
+/// <summary>
+/// Reset the reader after RTOS timeout
+/// </summary>
+void ResetReader();
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
