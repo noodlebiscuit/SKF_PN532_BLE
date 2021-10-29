@@ -37,3 +37,77 @@ Read more about using header files in official GCC documentation:
 * Computed Includes
 
 https://gcc.gnu.org/onlinedocs/cpp/Header-Files.html
+
+// Comment out this line when NOT using an ARDUINO NANO 33 BLE!
+#define USING_NANO_33_BLE
+#define NANO_33_BLE_DELAY 5
+
+
+THERE IS A PROBLEM WITH THE ADAFRUIT PN532 LIBRARY. THE FIX IS AS SHOWN BELOW:
+
+// Comment out this line when NOT using an ARDUINO NANO 33 BLE!
+#define USING_NANO_33_BLE
+#define NANO_33_BLE_DELAY 5
+
+STARTING AT LINE 312:
+/**************************************************************************/
+/*!
+    @brief  Sends a command and waits a specified period for the ACK
+
+    @param  cmd       Pointer to the command buffer
+    @param  cmdlen    The size of the command in bytes
+    @param  timeout   timeout before giving up
+
+    @returns  1 if everything is OK, 0 if timeout occured before an
+              ACK was recieved
+*/
+/**************************************************************************/
+// default timeout of one second
+bool Adafruit_PN532::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen,
+                                         uint16_t timeout)
+{
+  // uint16_t timer = 0;
+
+  // write the command
+  writecommand(cmd, cmdlen);
+
+  // Wait for chip to say its ready!
+  if (!waitready(timeout))
+  {
+    return false;
+  }
+
+#ifdef PN532DEBUG
+  if (spi_dev == NULL)
+  {
+    PN532DEBUGPRINT.println(F("IRQ received"));
+  }
+#endif
+
+  // read acknowledgement
+  if (!readack())
+  {
+#ifdef PN532DEBUG
+    PN532DEBUGPRINT.println(F("No ACK frame received!"));
+#endif
+    return false;
+  }
+
+  // For SPI only wait for the chip to be ready again.
+  // This is unnecessary with I2C.
+  if (spi_dev != NULL)
+  {
+#ifdef USING_NANO_33_BLE
+    delay(NANO_33_BLE_DELAY);
+#endif
+    if (!waitready(timeout))
+    {
+#ifdef USING_NANO_33_BLE
+      delay(NANO_33_BLE_DELAY);
+#endif
+      return false;
+    }
+  }
+
+  return true; // ack'd command
+}
