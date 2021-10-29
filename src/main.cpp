@@ -454,15 +454,20 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    if (_command == ClearTag)
    {
       _blockReader = true;
-      Serial.println(">>>> ERASING TAG >>>>>");
       // ClearTheCard(headerdata);
    }
    else if (_command == WriteNdefMessage)
    {
+      // at this point we don't want the reader to keep checking for Tags
       _blockReader = true;
-      Serial.println(">>>> UPDATING CARD >>>>>");
+
+      // now we publish the cached payload and drop all existing records from the NDEF cache
       WriteNdefMessagePayload(headerdata, isNTAG);
       ndef_message->dropAllRecords();
+
+      // lastly we revert to the default command state (read continuous) and unblock the reader
+      _command = ReadContinuous;
+      _blockReader = false;
    }
    else if (_command == ReadContinuous)
    {
