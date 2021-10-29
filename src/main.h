@@ -5,7 +5,7 @@
 #include <Wire.h>
 #include <iostream>
 #include <vector>
-#include <Adafruit_PN532.h>
+#include "PN532/Adafruit_PN532.h"
 #include "NDEF/NDEF_Message.h"
 
 #pragma once
