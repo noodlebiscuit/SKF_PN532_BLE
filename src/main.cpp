@@ -34,7 +34,7 @@ volatile bool timerEvent = false;
 unsigned long currentTime = 0;
 
 // what is the reader required to do?
-PN532_command _command = ReadContinuous;
+PN532_command _command = ReadCardContinuous;
 
 // block access to the reader hardware?
 volatile bool _blockReader = false;
@@ -58,10 +58,10 @@ volatile bool _enableTimeouts = false;
 /// <summary>
 /// Configure the BLE hardware
 /// </summary>
-void setupBLE()
+void SetupBLE()
 {
    // initiate BLE comms
-   startBLE();
+   StartBLE();
 
    // Create BLE service and characteristics.
    BLE.setLocalName(nameOfPeripheral);
@@ -84,7 +84,7 @@ void setupBLE()
 /// <summary>
 /// Start the BLE service!
 /// </summary>
-void startBLE()
+void StartBLE()
 {
    if (!BLE.begin())
    {
@@ -128,7 +128,7 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
    int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
 
    // process the received BLE message
-   processControlMessage(tmp, dataLength);
+   ProcessControlMessage(tmp, dataLength);
 }
 
 /// <summary>
@@ -136,31 +136,31 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 /// </summary>
 /// <param name="message">pointer to the received PB message byte array</param>
 /// <param name="messageSize">number of bytes in the PB message</param>
-void processControlMessage(byte *message, int messageSize)
+void ProcessControlMessage(byte *message, int messageSize)
 {
+   // initialise responses here (cannot be done within the switch() statement)
+   uint8_t cachedRecordCount = 0x00;
+   uint8_t *responsePayload = new uint8_t[4];
+
    // process any received payload
    _command = GetCommandType(message);
 
    // OK, and what's expected of us here?
    switch (_command)
    {
-   case ReadContinuous:
+   case ReadCardContinuous:
       _blockReader = false; // reset any existing read blocks
       Serial.println("Read continuous");
       break;
 
-   case ReadOnce:
+   case ReadCardOnce:
       _blockReader = false; // reset any existing read blocks
       Serial.println("Read once");
       break;
 
-   case ClearTag:
-      Serial.println("Erase card contents");
-      break;
-
-   case AddNdefRecord:
+   case AddNdefRecordToCashe:
       // revert the command to read continuous
-      _command = ReadContinuous;
+      _command = ReadCardContinuous;
       _blockReader = false;
 
       // process the received message
@@ -168,7 +168,27 @@ void processControlMessage(byte *message, int messageSize)
       Serial.println("Add single record to cache");
       break;
 
-   case WriteNdefMessage:
+   case CountCachedNdefRecords:
+      GetCachedRecordCount(cachedRecordCount);
+
+      responsePayload[0] = 0x00;
+      responsePayload[1] = cachedRecordCount;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+
+      PublishResponseToBluetooth(responsePayload);
+
+      // revert the command to read continuous
+      _command = ReadCardContinuous;
+
+      Serial.println("Return number of cached NDEF records");
+      break;
+
+   case EraseCardContents:
+      Serial.println("Erase card contents");
+      break;
+
+   case PublishCacheToCard:
       Serial.println("Publish cache to card");
       break;
 
@@ -176,6 +196,26 @@ void processControlMessage(byte *message, int messageSize)
       Serial.println("Unknown");
       break;
    }
+
+   delete[] responsePayload;
+}
+
+/// <summary>
+/// Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// </summary>
+/// <param name="pagedata">raw NDEF message payload</param>
+/// <param name="headerdata">NDEF meassage header with UUID</param>
+void PublishResponseToBluetooth(uint8_t *responsePayload)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // send the payload terminator
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(responsePayload, 4);
+
+   // release the blocker
+   _readerBusy = false;
 }
 
 /// <summary>
@@ -256,7 +296,7 @@ void setup(void)
    Serial.print(versiondata);
 
    // lastly we setup the BLE layer
-   setupBLE();
+   SetupBLE();
 }
 
 /// <summary>
@@ -339,7 +379,7 @@ void ConnectToReader(void)
                // we only publish the NDEF data if the current command is either
                // a read continuous or a read just once
                //
-               if ((_command == ReadContinuous) | (_command == ReadOnce))
+               if ((_command == ReadCardContinuous) | (_command == ReadCardOnce))
                {
                   // if we have at least one NDEF record then write this to USB
                   PublishPayloadToBluetooth(pagedata, headerdata);
@@ -354,7 +394,7 @@ void ConnectToReader(void)
             ExecuteReaderCommands(headerdata, pagedata);
 
             // reset any command that might have been received
-            _command = ReadContinuous;
+            _command = ReadCardContinuous;
          }
          // release this object and leave method right here!
          delete[] uidRecord;
@@ -451,12 +491,12 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    Serial.println(isNTAG);
 
    // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
-   if (_command == ClearTag)
+   if (_command == EraseCardContents)
    {
       _blockReader = true;
       // ClearTheCard(headerdata);
    }
-   else if (_command == WriteNdefMessage)
+   else if (_command == PublishCacheToCard)
    {
       // at this point we don't want the reader to keep checking for Tags
       _blockReader = true;
@@ -466,16 +506,16 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
       ndef_message->dropAllRecords();
 
       // lastly we revert to the default command state (read continuous) and unblock the reader
-      _command = ReadContinuous;
+      _command = ReadCardContinuous;
       _blockReader = false;
    }
-   else if (_command == ReadContinuous)
+   else if (_command == ReadCardContinuous)
    {
       // for continuous (default) operation, we have to re-enable the reader
       _blockReader = false;
       return;
    }
-   else if (_command == ReadOnce)
+   else if (_command == ReadCardOnce)
    {
       // for a read once, we block any further reads right here!
       _blockReader = true;
@@ -573,7 +613,7 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
    buffer[1] = (uint8_t)(ndef_message->getEncodedSize());
 
    // how many pages will it take to write this to the card?
-   pages = getPageCount(totalBytes);
+   pages = GetPageCount(totalBytes);
 
    // initialse the page indexes
    uint8_t page = BYTES_PER_BLOCK;
@@ -592,7 +632,6 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
    // reset the LED
    ToggleLED(false);
 }
-
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -602,7 +641,7 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 /// How many pages are required to cover all message bytes?
 /// </summary>
 /// <param name="byteCount">number of message bytes</param>
-int getPageCount(int byteCount)
+int GetPageCount(int byteCount)
 {
    int pages = byteCount / BYTES_PER_BLOCK;
    int pagesModulo = byteCount % BYTES_PER_BLOCK;
@@ -620,7 +659,15 @@ void ResetReader()
 {
    _readerBusy = false;
    _blockReader = false;
-   _command = ReadContinuous;
+   _command = ReadCardContinuous;
+}
+
+/// <summary>
+/// How many NDEF records are currently stored in the hardware cache?
+/// </summary>
+void GetCachedRecordCount(uint8_t &cachedRecordCount)
+{
+   cachedRecordCount = (uint8_t)ndef_message->getRecordCount();
 }
 
 /// <summary>
@@ -629,29 +676,33 @@ void ResetReader()
 /// <param name="buffer">byte array to search against</param>
 PN532_command GetCommandType(uint8_t *buffer)
 {
-   if (memcmp(buffer, CONTINUOUS_READ, 2) == 0)
+   if (memcmp(buffer, CONTINUOUS_READ_CARD, 2) == 0)
    {
-      return ReadContinuous;
+      return ReadCardContinuous;
    }
-   else if (memcmp(buffer, SINGLE_READ, 2) == 0)
+   else if (memcmp(buffer, SINGLE_READ_CARD, 2) == 0)
    {
-      return ReadOnce;
+      return ReadCardOnce;
    }
-   else if (memcmp(buffer, ADD_RECORD, 2) == 0)
+   else if (memcmp(buffer, ADD_NDEF_RECORD, 2) == 0)
    {
-      return AddNdefRecord;
+      return AddNdefRecordToCashe;
    }
-   else if (memcmp(buffer, UPDATE_TAG, 2) == 0)
+   else if (memcmp(buffer, PUBLISH_TO_CARD, 2) == 0)
    {
-      return WriteNdefMessage;
+      return PublishCacheToCard;
    }
-   else if (memcmp(buffer, ERASE_TAG, 2) == 0)
+   else if (memcmp(buffer, ERASE_CARD_CONTENTS, 2) == 0)
    {
-      return ClearTag;
+      return EraseCardContents;
+   }
+   else if (memcmp(buffer, COUNT_NDEF_RECORDS, 2) == 0)
+   {
+      return CountCachedNdefRecords;
    }
    else
    {
-      return ReadContinuous;
+      return ReadCardContinuous;
    }
 }
 

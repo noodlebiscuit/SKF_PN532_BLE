@@ -69,6 +69,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 //------------------------------------------------------------------------------------------------
 
 #define INVALID_NDEF "INVALID NDEF RECORD"     // no valid NDEF records could be found
+#define OPCODE_BYTES 2                         // how many bytes make up an OPCODE
 
 //------------------------------------------------------------------------------------------------
 
@@ -99,13 +100,47 @@ Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 byte READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
+// RECEIVED COMMAND SET:
+// 
+// These are commands received from the connected controller. They are of the format:  
+//      [ 00 ], [ 01 ] VERB or OPCODE
+//      [ 02 ], [ 03 ] .. [ 26 ] NOUN or OPERAND
+// 
+// List of supported OPCODES:
+//
+// > continuous read and return of detected card contents
+uint8_t CONTINUOUS_READ_CARD[OPCODE_BYTES] = {0x00, 0x00}; 
 
-uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a}; // End of record payload
-uint8_t CONTINUOUS_READ[2] = {0x00, 0x00}; // continuous read of detected TAG
-uint8_t SINGLE_READ[2] = {0x00, 0x01};     // read detected TAG once on each receipt of this command
-uint8_t ADD_RECORD[2] = {0x00, 0x02};      // add a single NDEF message to the the local cache
-uint8_t ERASE_TAG[2] = {0x00, 0x03};       // clear all TAG contents
-uint8_t UPDATE_TAG[2] = {0x00, 0x04};      // publish all cached NDEF messages to the TAG
+// > on receipt of this command, read once and return detected card contents
+uint8_t SINGLE_READ_CARD[OPCODE_BYTES] = {0x00, 0x01}; 
+
+// > add a single NDEF record to the reader's cache memory
+uint8_t ADD_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x02}; 
+
+// > how many NDEF records are in the device's cache memory
+uint8_t COUNT_NDEF_RECORDS[OPCODE_BYTES] = {0x00, 0x03}; 
+
+// > manually clear reader's internal NDEF cache memory
+uint8_t CLEAR_NDEF_CACHE[OPCODE_BYTES] = {0x00, 0x04};
+
+// > brute-force publish all cached NDEF records to the detected card
+uint8_t PUBLISH_TO_CARD[OPCODE_BYTES] = {0x00, 0x05}; 
+
+// > erase all NDEF records from a detected card
+uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x06}; 
+
+//------------------------------------------------------------------------------------------------
+// TRANSMITTED REPLY PACKETS:
+//
+// These are the four byte packets that will be returned in response to a received COMMAND
+// They are of the format:
+//      [ 00 ], [ 01 ], [ CR ], [ LF ]
+//
+// byte [ 00 ] - value 0x00 = SUCCESS, value 0x0n = FAILURE WITH ERROR CODE (default is 0x00)
+//      [ 01 ] - value between 0x00 and 0xff (default is 0x00)
+//
+// > end of successfully transmitted payload 
+uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
@@ -116,113 +151,49 @@ uint8_t INVALID_UID = 0xff;
 //------------------------------------------------------------------------------------------------
 
 /// <summary>
+/// Describes each of the commands that this reader supports
+/// </summary>
+enum PN532_command : uint8_t
+{
+    ReadCardContinuous,
+    ReadCardOnce,
+    EraseCachedNdefRecords,
+    AddNdefRecordToCashe,
+    CountCachedNdefRecords,
+    PublishCacheToCard,
+    EraseCardContents,
+};
+
+//------------------------------------------------------------------------------------------------
+
+/// <summary>
 /// MBED* control the BLE connected pin
 /// </summary>
 DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 //------------------------------------------------------------------------------------------------
 
-/// <summary>
-/// Describes each of the commands that this reader supports
-/// </summary>
-enum PN532_command : uint8_t
-{
-    ReadContinuous,
-    ReadOnce,
-    ClearTag,
-    AddNdefRecord,
-    WriteNdefMessage,
-};
-
-//------------------------------------------------------------------------------------------------
-
 #pragma region METHOD PROTOTYPES
-void startBLE();
-void setupBLE();
-void onBLEDisconnected(BLEDevice);
-void onBLEConnected(BLEDevice);
-void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
-void processControlMessage(byte *message, int messageSize);
-void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
-
-/// <summary>
-/// Clears and overwrites the complete contents of the NDEF message block
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="clearCard">clear card before write action</param>
-void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard);
-
-/// <summary>
-/// How many pages are required to cover all message bytes?
-/// </summary>
-/// <param name="byteCount">number of message bytes</param>
-int getPageCount(int byteCount);
-
-/// <summary>
-/// Appends a received NDEF record to an existing NDEF message
-/// </summary>
-/// <param name="message">pointer to the received command message byte array</param>
-/// <param name="messageSize">number of bytes in the command message</param>
-void AddNdefRecordToMessage(byte *message, int messageSize);
-
-/// <summary>
-/// INTERUPT SERVICE ROUTINE
-/// </summary>
-void AtTime(void);
-
-/// <summary>
-/// Writes the NDEF contents of a card to the serial port
-/// </summary>
-/// <param name="message">reference to the read NDEF message</param>
-void ConnectToReader(void);
-
-/// <summary>
-/// Clear TAG contents or write complete NDEF message
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="pagedata">reference to the read NDEF message body</param>
-void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata);
-
-/// <summary>
-/// Writes the NDEF contents of a card to the serial port
-/// </summary>
-/// <param name="pagedata">returns the NDEF message payload</param>
-/// <param name="headerdata">returns the NDEF meassage header</param>
-uint8_t Read_PN532(uint8_t *, uint8_t *);
-
-/// <summary>
-/// How many pages are required to cover all message bytes?
-/// </summary>
-/// <param name="byteCount">number of message bytes</param>
 int GetPageCount(int);
-
-/// <summary>
-/// Get the received command type
-/// </summary>
-/// <param name="buffer">byte array to search against</param>
-PN532_command GetCommandType(uint8_t *buffer);
-
-/// <summary>
-/// Toggle the LED ON or OFF every time this method is called
-/// </summary>
-/// <param name="period">true for toggle else false for LED OFF</param>
-void ToggleLED(bool);
-
-/// <summary>
-/// Flashes the COMMS LED
-/// </summary>
-/// <param name="period">milliseconds to illuminate for</param>
-void FlashLED(int, int);
-
-/// <summary>
-/// INTERUPT SERVICE ROUTINE
-/// </summary>
+PN532_command GetCommandType(uint8_t *);
+uint8_t Read_PN532(uint8_t *, uint8_t *);
+void AddNdefRecordToMessage(byte *, int);
 void AtTime(void);
-
-/// <summary>
-/// Reset the reader after RTOS timeout
-/// </summary>
+void ConnectToReader(void);
+void ExecuteReaderCommands(uint8_t *, uint8_t *);
+void FlashLED(int, int);
+void GetCachedRecordCount(uint8_t &);
+void onBLEConnected(BLEDevice);
+void onBLEDisconnected(BLEDevice);
+void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
+void ProcessControlMessage(byte *, int);
+void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
+void PublishResponseToBluetooth(uint8_t *);
 void ResetReader();
+void SetupBLE();
+void StartBLE();
+void ToggleLED(bool);
+void WriteNdefMessagePayload(uint8_t *, bool);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
