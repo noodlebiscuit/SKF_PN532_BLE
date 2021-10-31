@@ -140,7 +140,7 @@ void ProcessControlMessage(byte *message, int messageSize)
 {
    // initialise responses here (cannot be done within the switch() statement)
    uint8_t cachedRecordCount = 0x00;
-   uint8_t *responsePayload = new uint8_t[4];
+   uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
 
    // process any received payload
    _command = GetCommandType(message);
@@ -149,21 +149,19 @@ void ProcessControlMessage(byte *message, int messageSize)
    switch (_command)
    {
    case ReadCardContinuous:
-      _blockReader = false; // reset any existing read blocks
-      Serial.println("Read continuous");
+      _blockReader = false;
+      Serial.println("Read continuous (executed within main reader loop)");
       break;
 
    case ReadCardOnce:
-      _blockReader = false; // reset any existing read blocks
-      Serial.println("Read once");
+      _blockReader = false;
+      Serial.println("Read once (executed within main reader loop)");
       break;
 
    case AddNdefRecordToCashe:
-      // revert the command to read continuous
       _command = ReadCardContinuous;
       _blockReader = false;
 
-      // process the received message
       AddNdefRecordToMessage(message, messageSize);
       Serial.println("Add single record to cache");
       break;
@@ -178,25 +176,22 @@ void ProcessControlMessage(byte *message, int messageSize)
 
       PublishResponseToBluetooth(responsePayload);
 
-      // revert the command to read continuous
       _command = ReadCardContinuous;
-
       Serial.println("Return number of cached NDEF records");
       break;
 
    case EraseCardContents:
-      Serial.println("Erase card contents");
+      Serial.println("Erase card contents (executed within main reader loop)");
       break;
 
    case PublishCacheToCard:
-      Serial.println("Publish cache to card");
+      Serial.println("Publish cache to card (executed within main reader loop)");
       break;
 
    default:
       Serial.println("Unknown");
       break;
    }
-
    delete[] responsePayload;
 }
 
@@ -486,9 +481,26 @@ uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
 void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 {
    // is this an NTAG compatible card?
-   bool isNTAG = ((pagedata[1] == NTAG_213_IC) | (pagedata[1] == NTAG_215_IC) | (pagedata[1] == NTAG_216_IC));
+   bool isNTAG = false;
 
-   Serial.println(isNTAG);
+   if ((pagedata[12] == CC[0]) & (pagedata[13] == CC[1]) & (pagedata[15] == CC[3]))
+   {
+      if (pagedata[14] == NTAG_213_IC)
+      {
+         isNTAG = true;
+         Serial.println("NTAG213");
+      }
+      else if (pagedata[14] == NTAG_215_IC)
+      {
+         isNTAG = true;
+         Serial.println("NTAG215");
+      }
+      else if (pagedata[14] == NTAG_216_IC)
+      {
+         isNTAG = true;
+         Serial.println("NTAG216");
+      }
+   }
 
    // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
    if (_command == EraseCardContents)
@@ -502,7 +514,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
       _blockReader = true;
 
       // now we publish the cached payload and drop all existing records from the NDEF cache
-      WriteNdefMessagePayload(headerdata, isNTAG);
+      // WriteNdefMessagePayload(headerdata, isNTAG);
       ndef_message->dropAllRecords();
 
       // lastly we revert to the default command state (read continuous) and unblock the reader
@@ -552,17 +564,29 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
       ++index;
    }
 
-   if (ndef_message->getRecordCount() <= 12)
+   // how many bytes would be needed to encode the current NTAG payload?
+   uint8_t totalBytes = ndef_message->getEncodedSize() + NDEF_EN_RECORD_EXTRA_PAGE_BYTES;
+
+   // if we add the current record size, how many bytes does that rise to?
+   int newRecordSize = totalBytes + index;
+
+   // provided that doesn't exceed the physical maximum, then add the current record to the cache
+   if (newRecordSize < NTAG_MAX_TOTAL_BYTES)
    {
       // add an NDEF text record to the NDEF message
       ndef_message->addTextRecord(ndefRecord);
 
       // post feedback
+      Serial.println(totalBytes);
       Serial.write(ndefRecord, index);
 
       // terminate with a CR and LF
       Serial.write(0x0d);
       Serial.write(0x0a);
+   }
+   else
+   {
+      Serial.println("ERROR: CARD IS FULL");
    }
 
    delete[] ndefRecord;

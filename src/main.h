@@ -65,17 +65,23 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
 #define NTAG_MAX_RECORD_BYTES 24     //	maximum number of characters per NDEF record
+#define NTAG_MAX_TOTAL_BYTES 236     //	maximum number of bytes that can be written to a card
 
 //------------------------------------------------------------------------------------------------
 
 #define INVALID_NDEF "INVALID NDEF RECORD"     // no valid NDEF records could be found
 #define OPCODE_BYTES 2                         // how many bytes make up an OPCODE
+#define OPERAND_BYTES 4                        // how many bytes make up an OPERAND
 
 //------------------------------------------------------------------------------------------------
 
-#define NTAG_213_IC 0x12 // byte code (payload[1]) that identifies and NTAG-213 card
-#define NTAG_215_IC 0x3e // byte code (payload[1]) that identifies and NTAG-215 card
-#define NTAG_216_IC 0x6d // byte code (payload[1]) that identifies and NTAG-216 card
+#define NTAG_213_IC 0x12 // byte code (payload[14]) that identifies and NTAG-213 card
+#define NTAG_215_IC 0x3e // byte code (payload[14]) that identifies and NTAG-215 card
+#define NTAG_216_IC 0x6d // byte code (payload[14]) that identifies and NTAG-216 card
+
+#define NTAG_213_MEMORY 0x0090 // 144 bytes
+#define NTAG_215_MEMORY 0x01f0 // 496 bytes
+#define NTAG_216_MEMORY 0x0386 // 872 bytes
 
 //------------------------------------------------------------------------------------------------
 
@@ -97,7 +103,8 @@ Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 
 //------------------------------------------------------------------------------------------------
 
-byte READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
+uint8_t READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
+uint8_t CC[4] = {0xe1, 0x10, 0x12, 0x00 };
 
 //------------------------------------------------------------------------------------------------
 // RECEIVED COMMAND SET:
@@ -162,6 +169,16 @@ enum PN532_command : uint8_t
     CountCachedNdefRecords,
     PublishCacheToCard,
     EraseCardContents,
+};
+
+/// <summary>
+/// Supported NTAG formats
+/// </summary>
+enum NTAG : uint8_t
+{
+    TYPE_213,
+    TYPE_215,
+    TYPE_218,
 };
 
 //------------------------------------------------------------------------------------------------
