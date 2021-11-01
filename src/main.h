@@ -18,10 +18,14 @@ using namespace std::chrono;
 
 //------------------------------------------------------------------------------------------------
 
-const char *nameOfPeripheral = "SKF NFC Reader";
+const char *localNameOfPeripheral = "NFC Reader";
+const char *deviceNameOfPeripheral = "NFC Reader";
 const char *uuidOfService = "0000181a-0000-1000-8000-00805f9b34fb"; // environmental sensing
 const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";  // measurement data
 const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";  // configuration data (JSON)
+
+// set the manufacturer code to 'SKF (U.K.) Limited'
+uint8_t manufacturer[2] = {0x0e, 0x04}; 
 
 // Setup the incoming data characteristic (RX).
 const int RX_BUFFER_SIZE = 32;
@@ -65,7 +69,6 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
 #define NTAG_MAX_RECORD_BYTES 24     //	maximum number of characters per NDEF record
-#define NTAG_MAX_TOTAL_BYTES 236     //	maximum number of bytes that can be written to a card
 
 //------------------------------------------------------------------------------------------------
 
@@ -94,7 +97,8 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define IS_DEGUG true // returns serial debug data
+#define READER_DEBUG
+#define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
 
@@ -148,6 +152,12 @@ uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x06};
 //
 // > end of successfully transmitted payload 
 uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
+// > error in attempting to publish to card (out of memory)
+uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
+// > error in attempting to publish to card (card could not be found)
+uint8_t WRITE_ERROR_DISCONNECT[4] = {0x02, 0x01, 0x0d, 0x0a};
+// > error in attempting to publish to card (out of memory)
+uint8_t WRITE_ERROR_OVERRUN[4] = {0x02, 0x01, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
@@ -176,9 +186,10 @@ enum PN532_command : uint8_t
 /// </summary>
 enum NTAG : uint8_t
 {
+    UNKNOWN,
     TYPE_213,
     TYPE_215,
-    TYPE_218,
+    TYPE_216,
 };
 
 //------------------------------------------------------------------------------------------------
@@ -192,7 +203,9 @@ DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 #pragma region METHOD PROTOTYPES
 int GetPageCount(int);
+NTAG GetCardType(uint8_t *);
 PN532_command GetCommandType(uint8_t *);
+uint16_t GetTotalCardMemory(NTAG);
 uint8_t Read_PN532(uint8_t *, uint8_t *);
 void AddNdefRecordToMessage(byte *, int);
 void AtTime(void);
