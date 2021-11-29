@@ -149,6 +149,9 @@ void ProcessControlMessage(byte *message, int messageSize)
    // OK, and what's expected of us here?
    switch (_command)
    {
+   // *************************************************************************
+   // Read detected card continuously
+   // *************************************************************************
    case ReadCardContinuous:
       _blockReader = false;
 #ifdef READER_DEBUG
@@ -156,6 +159,9 @@ void ProcessControlMessage(byte *message, int messageSize)
 #endif
       break;
 
+   // *************************************************************************
+   // Read detected card just once (re-issue this command to repeat)
+   // *************************************************************************
    case ReadCardOnce:
       _blockReader = false;
 #ifdef READER_DEBUG
@@ -163,6 +169,9 @@ void ProcessControlMessage(byte *message, int messageSize)
 #endif
       break;
 
+   // *************************************************************************
+   // Add a new record to the NDEF record cache
+   // *************************************************************************
    case AddNdefRecordToCashe:
       _command = ReadCardContinuous;
       _blockReader = false;
@@ -172,6 +181,26 @@ void ProcessControlMessage(byte *message, int messageSize)
 #endif
       break;
 
+   // *************************************************************************
+   // Erase all existing cache contents
+   // *************************************************************************
+   case EraseCachedNdefRecords:
+      ndef_message->dropAllRecords();
+      responsePayload[0] = 0x00;
+      responsePayload[1] = 0x00;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      PublishResponseToBluetooth(responsePayload);
+      _command = ReadCardContinuous;
+
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println("Erase all cached records");
+#endif
+      break;
+
+   // *************************************************************************
+   // count and return the number of NDEF records currently in the cache
+   // *************************************************************************
    case CountCachedNdefRecords:
       GetCachedRecordCount(cachedRecordCount);
       responsePayload[0] = 0x00;
@@ -185,18 +214,27 @@ void ProcessControlMessage(byte *message, int messageSize)
 #endif
       break;
 
+   // *************************************************************************
+   // erase all contents of the current card
+   // *************************************************************************
    case EraseCardContents:
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Erase card contents (executed within main reader loop)");
 #endif
       break;
 
+   // *************************************************************************
+   // publish the NDEF record cache to the next detected card
+   // *************************************************************************
    case PublishCacheToCard:
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Publish cache to card (executed within main reader loop)");
 #endif
       break;
 
+   // *************************************************************************
+   // debug only (unknown command)
+   // *************************************************************************
    default:
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Unknown");
@@ -544,22 +582,22 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    NTAG cardType = GetCardType(headerdata);
 
 #ifdef READER_DEBUG
-      // for debug, let's see what the card type actually is
-      switch (cardType)
-      {
-      case UNKNOWN:
-         READER_DEBUGPRINT.println("CARD NOT RECOGNISED");
-         break;
-      case TYPE_213:
-         READER_DEBUGPRINT.println("CARD IS NTAG-213");
-         break;
-      case TYPE_215:
-         READER_DEBUGPRINT.println("CARD IS NTAG-215");
-         break;
-      case TYPE_216:
-         READER_DEBUGPRINT.println("CARD IS NTAG-216");
-         break;
-      }
+   // for debug, let's see what the card type actually is
+   switch (cardType)
+   {
+   case UNKNOWN:
+      READER_DEBUGPRINT.println("CARD NOT RECOGNISED");
+      break;
+   case TYPE_213:
+      READER_DEBUGPRINT.println("CARD IS NTAG-213");
+      break;
+   case TYPE_215:
+      READER_DEBUGPRINT.println("CARD IS NTAG-215");
+      break;
+   case TYPE_216:
+      READER_DEBUGPRINT.println("CARD IS NTAG-216");
+      break;
+   }
 #endif
 
    // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
@@ -794,6 +832,10 @@ PN532_command GetCommandType(uint8_t *buffer)
    else if (memcmp(buffer, COUNT_NDEF_RECORDS, 2) == 0)
    {
       return CountCachedNdefRecords;
+   }
+   else if (memcmp(buffer, CLEAR_NDEF_CACHE, 2) == 0)
+   {
+      return EraseCachedNdefRecords;
    }
    else
    {

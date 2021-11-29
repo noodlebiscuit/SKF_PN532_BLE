@@ -20,7 +20,7 @@ using namespace std::chrono;
 
 const char *localNameOfPeripheral = "NFC Reader";
 const char *deviceNameOfPeripheral = "NFC Reader";
-const char *uuidOfService = "0000181a-0000-1000-8000-00805f9b34fb"; // environmental sensing
+const char *uuidOfService = "00002A5D-0000-1000-8000-00805F9B34FB"; // environmental sensing
 const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";  // measurement data
 const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";  // configuration data (JSON)
 
@@ -157,7 +157,7 @@ uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
 // > error in attempting to publish to card (card could not be found)
 uint8_t WRITE_ERROR_DISCONNECT[4] = {0x02, 0x01, 0x0d, 0x0a};
 // > error in attempting to publish to card (out of memory)
-uint8_t WRITE_ERROR_OVERRUN[4] = {0x02, 0x01, 0x0d, 0x0a};
+uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
