@@ -170,24 +170,31 @@ void ProcessControlMessage(byte *message, int messageSize)
       break;
 
    // *************************************************************************
-   // Add a new record to the NDEF record cache
+   // Add a new record to the NDEF message cache and confirm with write-back
    // *************************************************************************
    case AddNdefRecordToCashe:
       _command = ReadCardContinuous;
       _blockReader = false;
       AddNdefRecordToMessage(message, messageSize);
+      GetCachedRecordCount(cachedRecordCount);
+      responsePayload[0] = 0x00;
+      responsePayload[1] = cachedRecordCount;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      PublishResponseToBluetooth(responsePayload);
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Add single record to cache");
 #endif
       break;
 
    // *************************************************************************
-   // Erase all existing cache contents
+   // Erase all existing cache contents and confirm with write-back
    // *************************************************************************
    case EraseCachedNdefRecords:
       ndef_message->dropAllRecords();
+      GetCachedRecordCount(cachedRecordCount);
       responsePayload[0] = 0x00;
-      responsePayload[1] = 0x00;
+      responsePayload[1] = cachedRecordCount;
       responsePayload[2] = 0x0d;
       responsePayload[3] = 0x0a;
       PublishResponseToBluetooth(responsePayload);
@@ -786,7 +793,7 @@ int GetPageCount(int byteCount)
 }
 
 /// <summary>
-/// Reset the reader after RTOS timeout
+/// Reset the reader after RTOS timeout and erase the NDEF message cache
 /// </summary>
 void ResetReader()
 {
