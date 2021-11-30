@@ -181,6 +181,7 @@ void ProcessControlMessage(byte *message, int messageSize)
       responsePayload[1] = cachedRecordCount;
       responsePayload[2] = 0x0d;
       responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
       PublishResponseToBluetooth(responsePayload);
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Add single record to cache");
@@ -197,6 +198,7 @@ void ProcessControlMessage(byte *message, int messageSize)
       responsePayload[1] = cachedRecordCount;
       responsePayload[2] = 0x0d;
       responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
       PublishResponseToBluetooth(responsePayload);
       _command = ReadCardContinuous;
 
@@ -214,6 +216,7 @@ void ProcessControlMessage(byte *message, int messageSize)
       responsePayload[1] = cachedRecordCount;
       responsePayload[2] = 0x0d;
       responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
       PublishResponseToBluetooth(responsePayload);
       _command = ReadCardContinuous;
 #ifdef READER_DEBUG
@@ -800,6 +803,10 @@ void ResetReader()
    _readerBusy = false;
    _blockReader = false;
    _command = ReadCardContinuous;
+   if (ndef_message->getRecordCount() > 0)
+   {
+      ndef_message->dropAllRecords();
+   }
 }
 
 /// <summary>
