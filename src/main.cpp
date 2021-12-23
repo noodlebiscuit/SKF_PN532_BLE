@@ -192,7 +192,10 @@ void ProcessControlMessage(byte *message, int messageSize)
    // Erase all existing cache contents and confirm with write-back
    // *************************************************************************
    case EraseCachedNdefRecords:
-      ndef_message->dropAllRecords();
+      if (ndef_message->getRecordCount() > 0)
+      {
+         ndef_message->dropAllRecords();
+      }
       GetCachedRecordCount(cachedRecordCount);
       responsePayload[0] = 0x00;
       responsePayload[1] = cachedRecordCount;
