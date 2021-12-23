@@ -141,6 +141,8 @@ void ProcessControlMessage(byte *message, int messageSize)
 {
    // initialise responses here (cannot be done within the switch() statement)
    uint8_t cachedRecordCount = 0x00;
+   uint8_t encodedSizeLow = 0x00;
+   uint8_t encodedSizeHigh = 0x00;
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
    uint16_t encodedSize = 0x0000;
 
@@ -235,13 +237,14 @@ void ProcessControlMessage(byte *message, int messageSize)
       if (ndef_message->getRecordCount() > 0)
       {
          encodedSize = (uint16_t)ndef_message->getEncodedSize();
-         if (encodedSize <= 0x00ff)
+         if (encodedSize <= NTAG_216_MEMORY)
          {
-            cachedRecordCount = (uint8_t)encodedSize;
+            encodedSizeLow = (uint8_t)(encodedSize & 0x00ff);
+            encodedSizeHigh = (uint8_t)(encodedSize >> 8);
          }
       }
-      responsePayload[0] = 0x00;
-      responsePayload[1] = cachedRecordCount;
+      responsePayload[0] = encodedSizeHigh;
+      responsePayload[1] = encodedSizeLow;
       responsePayload[2] = 0x0d;
       responsePayload[3] = 0x0a;
       delayMicroseconds(BLOCK_WAIT_BLE);
