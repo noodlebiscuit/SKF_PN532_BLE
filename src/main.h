@@ -141,7 +141,10 @@ uint8_t PUBLISH_TO_CARD[OPCODE_BYTES] = {0x00, 0x05};
 uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x06}; 
 
 // > read the current battery voltage
-uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x07}; 
+uint8_t GET_ENCODED_SIZE[OPCODE_BYTES] = {0x00, 0x07}; 
+
+// > read the current battery voltage
+uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x08}; 
 
 //------------------------------------------------------------------------------------------------
 // TRANSMITTED REPLY PACKETS:
@@ -182,6 +185,7 @@ enum PN532_command : uint8_t
     CountCachedNdefRecords,
     PublishCacheToCard,
     EraseCardContents,
+    GetEncodedSize,
     ReadBatteryVoltage
 };
 

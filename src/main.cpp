@@ -142,6 +142,7 @@ void ProcessControlMessage(byte *message, int messageSize)
    // initialise responses here (cannot be done within the switch() statement)
    uint8_t cachedRecordCount = 0x00;
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
+   uint16_t encodedSize = 0x0000;
 
    // process any received payload
    _command = GetCommandType(message);
@@ -224,6 +225,30 @@ void ProcessControlMessage(byte *message, int messageSize)
       _command = ReadCardContinuous;
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Return number of cached NDEF records");
+#endif
+      break;
+
+   // *************************************************************************
+   // count and return the encoded message size in bytes
+   // *************************************************************************
+   case GetEncodedSize:
+      if (ndef_message->getRecordCount() > 0)
+      {
+         encodedSize = (uint16_t)ndef_message->getEncodedSize();
+         if (encodedSize <= 0x00ff)
+         {
+            cachedRecordCount = (uint8_t)encodedSize;
+         }
+      }
+      responsePayload[0] = 0x00;
+      responsePayload[1] = cachedRecordCount;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      PublishResponseToBluetooth(responsePayload);
+      _command = ReadCardContinuous;
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println("Get the encoded cache size");
 #endif
       break;
 
@@ -853,6 +878,14 @@ PN532_command GetCommandType(uint8_t *buffer)
    else if (memcmp(buffer, CLEAR_NDEF_CACHE, 2) == 0)
    {
       return EraseCachedNdefRecords;
+   }
+   else if (memcmp(buffer, GET_ENCODED_SIZE, 2) == 0)
+   {
+      return GetEncodedSize;
+   }
+   else if (memcmp(buffer, READ_BATTERY_VOLTAGE, 2) == 0)
+   {
+      return ReadBatteryVoltage;
    }
    else
    {
