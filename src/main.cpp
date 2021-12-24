@@ -283,6 +283,9 @@ void ProcessControlMessage(byte *message, int messageSize)
       break;
    }
    delete[] responsePayload;
+
+   // single instance LED flash
+   FlashLED(COMMAND_LED_FLASH, 0);
 }
 
 /// <summary>
