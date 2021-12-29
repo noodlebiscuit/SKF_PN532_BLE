@@ -145,6 +145,7 @@ void ProcessControlMessage(byte *message, int messageSize)
    uint8_t encodedSizeHigh = 0x00;
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
    uint16_t encodedSize = 0x0000;
+   uint16_t batteryVoltage = 0x0000;
 
    // process any received payload
    _command = GetCommandType(message);
@@ -231,6 +232,24 @@ void ProcessControlMessage(byte *message, int messageSize)
       break;
 
    // *************************************************************************
+   // read and return the current battery voltage
+   // *************************************************************************
+   case ReadBatteryVoltage:
+      batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
+      Serial.println(batteryVoltage);
+      responsePayload[0] = (uint8_t)(batteryVoltage >> 8);
+      responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      PublishResponseToBluetooth(responsePayload);
+      _command = ReadCardContinuous;
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println("Read the current battery voltage");
+#endif
+      break;
+
+   // *************************************************************************
    // count and return the encoded message size in bytes
    // *************************************************************************
    case GetEncodedSize:
@@ -269,6 +288,12 @@ void ProcessControlMessage(byte *message, int messageSize)
    // *************************************************************************
    case PublishCacheToCard:
 #ifdef READER_DEBUG
+      responsePayload[0] = 0x00;
+      responsePayload[1] = 0x00;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      PublishResponseToBluetooth(responsePayload);
       READER_DEBUGPRINT.println("Publish cache to card (executed within main reader loop)");
 #endif
       break;
@@ -286,6 +311,23 @@ void ProcessControlMessage(byte *message, int messageSize)
 
    // single instance LED flash
    FlashLED(COMMAND_LED_FLASH, 0);
+}
+
+/// <summary>
+/// Reads and returns an averaged value for the 3.7V Lithium ion battery
+/// </summary>
+/// <param name="PIN">what analogue pin are we connecting to?</param>
+/// <param name="average">how many samples to read and average</param>
+/// <returns>read battery voltage between 0 and 2047</returns>
+uint16_t ReadBattery(pin_size_t PIN, int average)
+{
+   int16_t value = 0x0000;
+   for (int i = 0; i < average; ++i)
+   {
+      value += analogRead(PIN);
+      delayMicroseconds(BLOCK_WAIT_BLE);
+   }
+   return (uint16_t)(value/average);
 }
 
 /// <summary>

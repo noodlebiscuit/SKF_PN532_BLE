@@ -63,6 +63,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define BLOCK_WAIT_BLE 20000    // wait 20ms between each BLE transmit packet
 #define COMMAND_LED_FLASH 20    // wait 20ms between each BLE transmit packet
 #define TICK_RATE_MS 200ms      // update rate for the mbed timer
+#define READ_BATTERY_AVG 10     // how many samples to average to calculate the supply voltage
 
 //------------------------------------------------------------------------------------------------
 
@@ -211,6 +212,7 @@ DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
+uint16_t ReadBattery(pin_size_t, int);
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);
 PN532_command GetCommandType(uint8_t *);
