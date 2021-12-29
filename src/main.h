@@ -212,6 +212,7 @@ DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
+void PublishWriteFeedback(byte, byte);
 uint16_t ReadBattery(pin_size_t, int);
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);

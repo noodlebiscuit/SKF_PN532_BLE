@@ -288,12 +288,6 @@ void ProcessControlMessage(byte *message, int messageSize)
    // *************************************************************************
    case PublishCacheToCard:
 #ifdef READER_DEBUG
-      responsePayload[0] = 0x00;
-      responsePayload[1] = 0x00;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
       READER_DEBUGPRINT.println("Publish cache to card (executed within main reader loop)");
 #endif
       break;
@@ -327,7 +321,7 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
       value += analogRead(PIN);
       delayMicroseconds(BLOCK_WAIT_BLE);
    }
-   return (uint16_t)(value/average);
+   return (uint16_t)(value / average);
 }
 
 /// <summary>
@@ -846,7 +840,11 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
       ++page;
       offset += BYTES_PER_BLOCK;
       ToggleLED(true);
+      PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
+
+   // post two 0xff bytes to signify end of write sequence
+   PublishWriteFeedback(0x00, 0x00);
 
    // reset the LED
    ToggleLED(false);
@@ -856,6 +854,22 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE SUPPORT METHODS
+/// <summary>
+/// Publish the current page number being written
+/// </summary>
+/// <param name="pageLow">low byte value</param>
+/// <param name="pageHigh">high byte value</param>
+void PublishWriteFeedback(byte pageLow, byte pageHigh)
+{
+   uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
+   responsePayload[0] = pageHigh;
+   responsePayload[1] = pageLow;
+   responsePayload[2] = 0x0d;
+   responsePayload[3] = 0x0a;
+   PublishResponseToBluetooth(responsePayload);
+   delete[] responsePayload;
+}
+
 /// <summary>
 /// How many pages are required to cover all message bytes?
 /// </summary>
