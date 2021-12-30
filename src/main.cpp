@@ -472,6 +472,11 @@ void ConnectToReader(void)
       // read the card
       uint8_t uidLength = Read_PN532(pagedata, headerdata);
 
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.print("UID Length: ");
+      READER_DEBUGPRINT.println(uidLength);
+#endif
+
       // if the UID is valid, then the data should be OK
       if (uidLength == UID_LENGTH)
       {
@@ -509,10 +514,6 @@ void ConnectToReader(void)
                   PublishPayloadToBluetooth(pagedata, headerdata);
                }
             }
-            else
-            {
-               Serial.println(INVALID_NDEF);
-            }
 
             // clear TAG contents or write complete NDEF message
             ExecuteReaderCommands(headerdata, pagedata);
@@ -524,6 +525,14 @@ void ConnectToReader(void)
          delete[] uidRecord;
          return;
       }
+      else if (uidLength == INVALID_UID)
+		{
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println(INVALID_NDEF);
+#endif
+			// clear TAG contents or write complete NDEF message
+			ExecuteReaderCommands(headerdata, pagedata);
+		}
 
       // if we've reached this point then we need to reset the received UID
       for (uint8_t i = 0; i < UID_LENGTH; ++i)
