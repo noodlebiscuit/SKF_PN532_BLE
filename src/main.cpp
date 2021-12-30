@@ -458,9 +458,8 @@ void AtTime()
 
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
 /// <summary>
-/// Writes the NDEF contents of a card to the serial port
+/// Main entry point for PN532 scanning
 /// </summary>
-/// <param name="message">reference to the read NDEF message</param>
 void ConnectToReader(void)
 {
    // if the reader is blocked, then bypass this method completely
@@ -526,13 +525,13 @@ void ConnectToReader(void)
          return;
       }
       else if (uidLength == INVALID_UID)
-		{
+      {
 #ifdef READER_DEBUG
-      READER_DEBUGPRINT.println(INVALID_NDEF);
+         READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
-			// clear TAG contents or write complete NDEF message
-			ExecuteReaderCommands(headerdata, pagedata);
-		}
+         // clear TAG contents or write complete NDEF message
+         ExecuteReaderCommands(headerdata, pagedata);
+      }
 
       // if we've reached this point then we need to reset the received UID
       for (uint8_t i = 0; i < UID_LENGTH; ++i)
@@ -543,7 +542,7 @@ void ConnectToReader(void)
 }
 
 /// <summary>
-/// Writes the NDEF contents of a card to the serial port
+/// Reads the card contents and returns over Bluetooth
 /// </summary>
 /// <param name="pagedata">returns the NDEF message payload</param>
 /// <param name="headerdata">returns the NDEF meassage header</param>
@@ -692,8 +691,15 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    // process the two supported commands (CLEAR and WRITE NDEF MESSAGE)
    if (_command == EraseCardContents)
    {
+      // at this point we don't want the reader to keep checking for Tags
       _blockReader = true;
-      // ClearTheCard(headerdata);
+
+      // clear all card contents
+      ClearTheCard(headerdata);
+
+      // lastly we revert to the default command state (read continuous) and unblock the reader
+      _command = ReadCardContinuous;
+      _blockReader = false;
    }
    else if (_command == PublishCacheToCard)
    {
@@ -848,6 +854,34 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
       nfc.ntag2xx_WritePage(page, pageBuffer);
       ++page;
       offset += BYTES_PER_BLOCK;
+      ToggleLED(true);
+      PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
+   }
+
+   // post two 0xff bytes to signify end of write sequence
+   PublishWriteFeedback(0x00, 0x00);
+
+   // reset the LED
+   ToggleLED(false);
+}
+
+/// <summary>
+/// Completely wipes an NTAG card of all contents
+/// </summary>
+/// <param name="headerdata">reference to the read NDEF message header</param>
+void ClearTheCard(uint8_t *headerdata)
+{
+   // create the page buffer
+   uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
+
+   // default page clear count
+   int pages = headerdata[NTAG_CAPABILITY_CONTAINER] * 2;
+
+   // clear either the default number (16) or all pages on the card
+   for (uint8_t i = 4; i < pages + 4; i++)
+   {
+      memset(pageBuffer, 0, 4);
+      nfc.ntag2xx_WritePage(i, pageBuffer);
       ToggleLED(true);
       PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
