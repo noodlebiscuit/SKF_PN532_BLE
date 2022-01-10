@@ -176,7 +176,7 @@ void ProcessControlMessage(byte *message, int messageSize)
    // *************************************************************************
    // Add a new record to the NDEF message cache and confirm with write-back
    // *************************************************************************
-   case AddNdefRecordToCashe:
+   case AddNdefRecordToCache:
       _command = ReadCardContinuous;
       _blockReader = false;
       AddNdefRecordToMessage(message, messageSize);
@@ -189,6 +189,25 @@ void ProcessControlMessage(byte *message, int messageSize)
       PublishResponseToBluetooth(responsePayload);
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Add single record to cache");
+#endif
+      break;
+
+   // *************************************************************************
+   // Add a new record to the NDEF message cache and confirm with write-back
+   // *************************************************************************
+   case AppendToCachedNdefRecord:
+      _command = ReadCardContinuous;
+      _blockReader = false;
+      AppendToNdefRecordMessage(message, messageSize);
+      GetCachedRecordCount(cachedRecordCount);
+      responsePayload[0] = 0x00;
+      responsePayload[1] = cachedRecordCount;
+      responsePayload[2] = 0x0d;
+      responsePayload[3] = 0x0a;
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      PublishResponseToBluetooth(responsePayload);
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println("Append new data to current record in cache");
 #endif
       break;
 
@@ -771,16 +790,16 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 void AddNdefRecordToMessage(byte *message, int messageSize)
 {
    // ensure the message size does not exceed the set limit
-   if (messageSize > NTAG_MAX_RECORD_BYTES + 2)
+   if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
    {
-      messageSize = NTAG_MAX_RECORD_BYTES + 2;
+      messageSize = NTAG_SINGLE_WRITE_BYTES + 2;
    }
 
    // create a new ndef record string buffer
-   char *ndefRecord = new char[NTAG_MAX_RECORD_BYTES];
+   char *ndefRecord = new char[NTAG_SINGLE_WRITE_BYTES];
 
    // clear the serial read buffer contents
-   memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
+   memset(ndefRecord, 0, NTAG_SINGLE_WRITE_BYTES);
 
    // strip away the first two command characters
    uint8_t index = 0;
@@ -792,6 +811,63 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
 
    // add an NDEF text record to the NDEF message
    ndef_message->addTextRecord(ndefRecord);
+
+   delete[] ndefRecord;
+}
+
+/// <summary>
+/// Appends a received data to the current NDEF message
+/// </summary>
+/// <param name="message">pointer to the received command message byte array</param>
+/// <param name="messageSize">number of bytes in the command message</param>
+void AppendToNdefRecordMessage(byte *message, int messageSize)
+{
+   // get the current record (last active) record from the cache
+   NDEF_Record record = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
+
+   // what is the number of bytes in this record?
+   // int recordLength = record.getPayloadLength();
+
+   // create a full size buffer that we can load the current NDEF record into
+   byte *ndefRecord = new byte[NTAG_MAX_RECORD_BYTES];
+
+   // reset the contents of this buffer
+   memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
+
+   // now get the current NDEF record from the cache
+   record.getPayload(ndefRecord);
+
+   // get the index of the last byte in the currently cached record
+   int index = record.getPayloadLength();;
+
+   // append the new message to the end of the old one
+   for (int i = 2; i < messageSize; ++i)
+   {
+      ndefRecord[index] = message[i];
+      index++;
+   }
+
+   // overwrite the current NDEF record with the newly updated one
+   record.setPayload(ndefRecord, index);
+
+   // now update the parent NDEF message
+   ndef_message->setRecord(ndef_message->getRecordCount() - 1, record);
+
+//#ifdef READER_DEBUG
+   NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
+   int recordLength = debugRecord.getPayloadLength();
+   byte *debugNdefRecord = new byte[NTAG_MAX_RECORD_BYTES];
+   debugRecord.getPayload(debugNdefRecord);
+   Serial.print(recordLength);
+   Serial.print(":  ");
+   for (int i = 0; i < recordLength; ++i)
+   {
+      Serial.print(debugNdefRecord[i]);
+      Serial.print(" ");
+   }
+   Serial.println("");
+   delete[] debugNdefRecord;
+//#endif
 
    delete[] ndefRecord;
 }
@@ -966,7 +1042,11 @@ PN532_command GetCommandType(uint8_t *buffer)
    }
    else if (memcmp(buffer, ADD_NDEF_RECORD, 2) == 0)
    {
-      return AddNdefRecordToCashe;
+      return AddNdefRecordToCache;
+   }
+   else if (memcmp(buffer, APPEND_NDEF_RECORD, 2) == 0)
+   {
+      return AppendToCachedNdefRecord;
    }
    else if (memcmp(buffer, PUBLISH_TO_CARD, 2) == 0)
    {

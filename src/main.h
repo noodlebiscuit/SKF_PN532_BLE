@@ -25,7 +25,7 @@ const char *uuidOfTxData = "0000290c-0000-1000-8000-00805f9b34fb";  // measureme
 const char *uuidOfRxData = "0000290b-0000-1000-8000-00805f9b34fb";  // configuration data (JSON)
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
-uint8_t manufacturer[2] = {0x0e, 0x04}; 
+uint8_t manufacturer[2] = {0x0e, 0x04};
 
 // Setup the incoming data characteristic (RX).
 const int RX_BUFFER_SIZE = 32;
@@ -70,13 +70,14 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define NTAG_IC_TYPE 12              // NTAG byte which describes the actual card type
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
-#define NTAG_MAX_RECORD_BYTES 24     //	maximum number of characters per NDEF record
+#define NTAG_SINGLE_WRITE_BYTES 24   //	number of characters per single NDEF record write
+#define NTAG_MAX_RECORD_BYTES 1024   //	absolute maximum number of characters per NDEF record
 
 //------------------------------------------------------------------------------------------------
 
-#define INVALID_NDEF "INVALID NDEF RECORD"     // no valid NDEF records could be found
-#define OPCODE_BYTES 2                         // how many bytes make up an OPCODE
-#define OPERAND_BYTES 4                        // how many bytes make up an OPERAND
+#define INVALID_NDEF "INVALID NDEF RECORD" // no valid NDEF records could be found
+#define OPCODE_BYTES 2                     // how many bytes make up an OPCODE
+#define OPERAND_BYTES 4                    // how many bytes make up an OPERAND
 
 //------------------------------------------------------------------------------------------------
 
@@ -99,7 +100,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define READER_DEBUG
+//#define READER_DEBUG
 #define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
@@ -110,43 +111,46 @@ Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 //------------------------------------------------------------------------------------------------
 
 uint8_t READER_TIMEOUT[5] = {0x2a, 0x54, 0x2f, 0x0d, 0x0a};
-uint8_t CC[4] = {0xe1, 0x10, 0x12, 0x00 };
+uint8_t CC[4] = {0xe1, 0x10, 0x12, 0x00};
 
 //------------------------------------------------------------------------------------------------
 // RECEIVED COMMAND SET:
-// 
-// These are commands received from the connected controller. They are of the format:  
+//
+// These are commands received from the connected controller. They are of the format:
 //      [ 00 ], [ 01 ] VERB or OPCODE
 //      [ 02 ], [ 03 ] .. [ 26 ] NOUN or OPERAND
-// 
+//
 // List of supported OPCODES:
 //
 // > continuous read and return of detected card contents
-uint8_t CONTINUOUS_READ_CARD[OPCODE_BYTES] = {0x00, 0x00}; 
+uint8_t CONTINUOUS_READ_CARD[OPCODE_BYTES] = {0x00, 0x00};
 
 // > on receipt of this command, read once and return detected card contents
-uint8_t SINGLE_READ_CARD[OPCODE_BYTES] = {0x00, 0x01}; 
+uint8_t SINGLE_READ_CARD[OPCODE_BYTES] = {0x00, 0x01};
 
 // > add a single NDEF record to the reader's cache memory
-uint8_t ADD_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x02}; 
+uint8_t ADD_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x02};
+
+// > add a single NDEF record to the reader's cache memory
+uint8_t APPEND_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x03};
 
 // > how many NDEF records are in the device's cache memory
-uint8_t COUNT_NDEF_RECORDS[OPCODE_BYTES] = {0x00, 0x03}; 
+uint8_t COUNT_NDEF_RECORDS[OPCODE_BYTES] = {0x00, 0x04};
 
 // > manually clear reader's internal NDEF cache memory
-uint8_t CLEAR_NDEF_CACHE[OPCODE_BYTES] = {0x00, 0x04};
+uint8_t CLEAR_NDEF_CACHE[OPCODE_BYTES] = {0x00, 0x05};
 
 // > brute-force publish all cached NDEF records to the detected card
-uint8_t PUBLISH_TO_CARD[OPCODE_BYTES] = {0x00, 0x05}; 
+uint8_t PUBLISH_TO_CARD[OPCODE_BYTES] = {0x00, 0x06};
 
 // > erase all NDEF records from a detected card
-uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x06}; 
+uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x07};
+
+// > what is the total number of bytes in the NDEF cache?
+uint8_t GET_ENCODED_SIZE[OPCODE_BYTES] = {0x00, 0x08};
 
 // > read the current battery voltage
-uint8_t GET_ENCODED_SIZE[OPCODE_BYTES] = {0x00, 0x07}; 
-
-// > read the current battery voltage
-uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x08}; 
+uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x09};
 
 //------------------------------------------------------------------------------------------------
 // TRANSMITTED REPLY PACKETS:
@@ -158,7 +162,7 @@ uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x08};
 // byte [ 00 ] - value 0x00 = SUCCESS, value 0x0n = FAILURE WITH ERROR CODE (default is 0x00)
 //      [ 01 ] - value between 0x00 and 0xff (default is 0x00)
 //
-// > end of successfully transmitted payload 
+// > end of successfully transmitted payload
 uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
 // > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
@@ -182,9 +186,10 @@ enum PN532_command : uint8_t
 {
     ReadCardContinuous,
     ReadCardOnce,
-    EraseCachedNdefRecords,
-    AddNdefRecordToCashe,
+    AddNdefRecordToCache,
+    AppendToCachedNdefRecord,
     CountCachedNdefRecords,
+    EraseCachedNdefRecords,
     PublishCacheToCard,
     EraseCardContents,
     GetEncodedSize,
@@ -221,6 +226,7 @@ PN532_command GetCommandType(uint8_t *);
 uint16_t GetTotalCardMemory(NTAG);
 uint8_t Read_PN532(uint8_t *, uint8_t *);
 void AddNdefRecordToMessage(byte *, int);
+void AppendToNdefRecordMessage(byte *, int);
 void AtTime(void);
 void ConnectToReader(void);
 void ExecuteReaderCommands(uint8_t *, uint8_t *);
