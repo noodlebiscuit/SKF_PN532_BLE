@@ -491,8 +491,11 @@ void ConnectToReader(void)
       uint8_t uidLength = Read_PN532(pagedata, headerdata);
 
 #ifdef READER_DEBUG
-      READER_DEBUGPRINT.print("UID Length: ");
-      READER_DEBUGPRINT.println(uidLength);
+      if (uidLength > 0)
+      {
+         READER_DEBUGPRINT.print("UID Length: ");
+         READER_DEBUGPRINT.println(uidLength);
+      }
 #endif
 
       // if the UID is valid, then the data should be OK
@@ -825,9 +828,6 @@ void AppendToNdefRecordMessage(byte *message, int messageSize)
    // get the current record (last active) record from the cache
    NDEF_Record record = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
 
-   // what is the number of bytes in this record?
-   // int recordLength = record.getPayloadLength();
-
    // create a full size buffer that we can load the current NDEF record into
    byte *ndefRecord = new byte[NTAG_MAX_RECORD_BYTES];
 
@@ -838,7 +838,8 @@ void AppendToNdefRecordMessage(byte *message, int messageSize)
    record.getPayload(ndefRecord);
 
    // get the index of the last byte in the currently cached record
-   int index = record.getPayloadLength();;
+   int index = record.getPayloadLength();
+   ;
 
    // append the new message to the end of the old one
    for (int i = 2; i < messageSize; ++i)
@@ -853,23 +854,24 @@ void AppendToNdefRecordMessage(byte *message, int messageSize)
    // now update the parent NDEF message
    ndef_message->setRecord(ndef_message->getRecordCount() - 1, record);
 
-//#ifdef READER_DEBUG
+   // release buffer resouces
+   delete[] ndefRecord;
+
+#ifdef READER_DEBUG
    NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
    int recordLength = debugRecord.getPayloadLength();
    byte *debugNdefRecord = new byte[NTAG_MAX_RECORD_BYTES];
    debugRecord.getPayload(debugNdefRecord);
-   Serial.print(recordLength);
-   Serial.print(":  ");
+   READER_DEBUGPRINT.print(recordLength);
+   READER_DEBUGPRINT.print(":  ");
    for (int i = 0; i < recordLength; ++i)
    {
-      Serial.print(debugNdefRecord[i]);
-      Serial.print(" ");
+      READER_DEBUGPRINT.print(debugNdefRecord[i]);
+      READER_DEBUGPRINT.print(" ");
    }
-   Serial.println("");
+   READER_DEBUGPRINT.println("");
    delete[] debugNdefRecord;
-//#endif
-
-   delete[] ndefRecord;
+#endif
 }
 
 /// <summary>

@@ -100,7 +100,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-//#define READER_DEBUG
+#define READER_DEBUG  // comment out this line to disable DEBUG functionality
 #define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
