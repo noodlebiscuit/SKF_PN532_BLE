@@ -71,7 +71,7 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
 #define NTAG_SINGLE_WRITE_BYTES 24   //	number of characters per single NDEF record write
-#define NTAG_MAX_RECORD_BYTES 1024   //	absolute maximum number of characters per NDEF record
+#define NTAG_MAX_RECORD_BYTES 448    //	absolute maximum number of characters per NDEF record
 
 //------------------------------------------------------------------------------------------------
 
@@ -100,7 +100,8 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-#define READER_DEBUG  // comment out this line to disable DEBUG functionality
+//#define READER_DEBUG                      // comment out this line to disable DEBUG functionality
+//#define READER_DEBUG_APPEND_FUNCTIONALITY // comment out this line to disable DEBUG functionality
 #define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
@@ -226,7 +227,7 @@ PN532_command GetCommandType(uint8_t *);
 uint16_t GetTotalCardMemory(NTAG);
 uint8_t Read_PN532(uint8_t *, uint8_t *);
 void AddNdefRecordToMessage(byte *, int);
-void AppendToNdefRecordMessage(byte *, int);
+bool AppendToNdefRecordMessage(byte *, int);
 void AtTime(void);
 void ConnectToReader(void);
 void ExecuteReaderCommands(uint8_t *, uint8_t *);

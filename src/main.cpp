@@ -198,17 +198,27 @@ void ProcessControlMessage(byte *message, int messageSize)
    case AppendToCachedNdefRecord:
       _command = ReadCardContinuous;
       _blockReader = false;
-      AppendToNdefRecordMessage(message, messageSize);
-      GetCachedRecordCount(cachedRecordCount);
-      responsePayload[0] = 0x00;
-      responsePayload[1] = cachedRecordCount;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
+      if (AppendToNdefRecordMessage(message, messageSize))
+      {
+         GetCachedRecordCount(cachedRecordCount);
+         responsePayload[0] = 0x00;
+         responsePayload[1] = cachedRecordCount;
+         responsePayload[2] = 0x0d;
+         responsePayload[3] = 0x0a;
+         delayMicroseconds(BLOCK_WAIT_BLE);
+         PublishResponseToBluetooth(responsePayload);
 #ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Append new data to current record in cache");
+         READER_DEBUGPRINT.println("Append new data to current record in cache");
 #endif
+      }
+      else
+      {
+         delayMicroseconds(BLOCK_WAIT_BLE);
+         PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
+#endif
+      }
       break;
 
    // *************************************************************************
@@ -823,41 +833,51 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
 /// </summary>
 /// <param name="message">pointer to the received command message byte array</param>
 /// <param name="messageSize">number of bytes in the command message</param>
-void AppendToNdefRecordMessage(byte *message, int messageSize)
+bool AppendToNdefRecordMessage(byte *message, int messageSize)
 {
    // get the current record (last active) record from the cache
    NDEF_Record record = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
 
-   // create a full size buffer that we can load the current NDEF record into
-   byte *ndefRecord = new byte[NTAG_MAX_RECORD_BYTES];
-
-   // reset the contents of this buffer
-   memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
-
-   // now get the current NDEF record from the cache
-   record.getPayload(ndefRecord);
-
    // get the index of the last byte in the currently cached record
    int index = record.getPayloadLength();
-   ;
 
-   // append the new message to the end of the old one
-   for (int i = 2; i < messageSize; ++i)
+   if ((index + messageSize) < NTAG_MAX_RECORD_BYTES)
    {
-      ndefRecord[index] = message[i];
-      index++;
+      // create a full size buffer that we can load the current NDEF record into
+      byte *ndefRecord = new byte[NTAG_MAX_RECORD_BYTES];
+
+      // reset the contents of this buffer
+      memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
+
+      // now get the current NDEF record from the cache
+      record.getPayload(ndefRecord);
+
+      // append the new message to the end of the old one
+      for (int i = 2; i < messageSize; ++i)
+      {
+         ndefRecord[index] = message[i];
+         index++;
+      }
+
+      // overwrite the current NDEF record with the newly updated one
+      record.setPayload(ndefRecord, index);
+
+      // now update the parent NDEF message
+      ndef_message->setRecord(ndef_message->getRecordCount() - 1, record);
+
+      // release buffer resouces
+      delete[] ndefRecord;
+   }
+   else
+   {
+      //
+      // if we're here, then we've exceeded the number of bytes that can
+      // be appended to a single NDEF record, so need to return FALSE
+      //
+      return false;
    }
 
-   // overwrite the current NDEF record with the newly updated one
-   record.setPayload(ndefRecord, index);
-
-   // now update the parent NDEF message
-   ndef_message->setRecord(ndef_message->getRecordCount() - 1, record);
-
-   // release buffer resouces
-   delete[] ndefRecord;
-
-#ifdef READER_DEBUG
+#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
    NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
    int recordLength = debugRecord.getPayloadLength();
    byte *debugNdefRecord = new byte[NTAG_MAX_RECORD_BYTES];
@@ -872,6 +892,9 @@ void AppendToNdefRecordMessage(byte *message, int messageSize)
    READER_DEBUGPRINT.println("");
    delete[] debugNdefRecord;
 #endif
+
+   // well, if we reached this point, then all we can do is hope for the best!
+   return true;
 }
 
 /// <summary>
