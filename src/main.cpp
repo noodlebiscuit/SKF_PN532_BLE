@@ -561,8 +561,8 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
-         // clear TAG contents or write complete NDEF message
-         ExecuteReaderCommands(headerdata, pagedata);
+         // let the user know that this is an empty TAG
+         PublishResponseToBluetooth(CARD_ERROR_EMPTY);
       }
 
       // if we've reached this point then we need to reset the received UID

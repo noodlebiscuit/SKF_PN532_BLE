@@ -165,12 +165,18 @@ uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x09};
 //
 // > end of successfully transmitted payload
 uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
+
 // > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
+
 // > error in attempting to publish to card (card could not be found)
 uint8_t WRITE_ERROR_DISCONNECT[4] = {0x02, 0x01, 0x0d, 0x0a};
+
 // > error in attempting to publish to card (out of memory)
 uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
+
+// > error in attempting to read NDEF data from an empty card
+uint8_t CARD_ERROR_EMPTY[4] = {0x04, 0x01, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
 
