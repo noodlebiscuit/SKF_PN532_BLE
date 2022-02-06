@@ -494,8 +494,8 @@ void ConnectToReader(void)
    // if the reader is blocked, then bypass this method completely
    if (!(_blockReader | _readerBusy))
    {
-      uint8_t pagedata[TOTAL_BLOCKS * BYTES_PER_BLOCK];
-      uint8_t headerdata[BLOCK_SIZE_BLE];
+      uint8_t *pagedata = new uint8_t[TOTAL_BLOCKS * BYTES_PER_BLOCK];
+      uint8_t *headerdata = new uint8_t[BLOCK_SIZE_BLE];
 
       // read the card
       uint8_t uidLength = Read_PN532(pagedata, headerdata);
@@ -554,6 +554,8 @@ void ConnectToReader(void)
          }
          // release this object and leave method right here!
          delete[] uidRecord;
+         delete[] pagedata;
+         delete[] headerdata;
          return;
       }
       else if (uidLength == INVALID_UID)
@@ -561,9 +563,15 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
+         // clear TAG contents or write complete NDEF message
+         ExecuteReaderCommands(headerdata, pagedata);
+
          // let the user know that this is an empty TAG
          PublishResponseToBluetooth(CARD_ERROR_EMPTY);
       }
+
+      delete[] pagedata;
+      delete[] headerdata;
 
       // if we've reached this point then we need to reset the received UID
       for (uint8_t i = 0; i < UID_LENGTH; ++i)
