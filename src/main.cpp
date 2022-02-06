@@ -216,7 +216,7 @@ void ProcessControlMessage(byte *message, int messageSize)
          delayMicroseconds(BLOCK_WAIT_BLE);
          PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
 #ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
+         READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
 #endif
       }
       break;
@@ -727,7 +727,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
       _blockReader = true;
 
       // clear all card contents
-      ClearTheCard(headerdata);
+      ClearTheCard(headerdata, pagedata);
 
       // lastly we revert to the default command state (read continuous) and unblock the reader
       _command = ReadCardContinuous;
@@ -970,7 +970,8 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 /// Completely wipes an NTAG card of all contents
 /// </summary>
 /// <param name="headerdata">reference to the read NDEF message header</param>
-void ClearTheCard(uint8_t *headerdata)
+/// <param name="pagedata">reference to the read NDEF message payload</param>
+void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
 {
    // create the page buffer
    uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
@@ -989,6 +990,14 @@ void ClearTheCard(uint8_t *headerdata)
 
    // post two 0xff bytes to signify end of write sequence
    PublishWriteFeedback(0x00, 0x00);
+
+   // now we clear EVERYTHING!! This includes local memory and the NFC reader cache!
+   std::fill_n(pagedata, TOTAL_BLOCKS * BYTES_PER_BLOCK, 0);
+   std::fill_n(headerdata, BLOCK_SIZE_BLE, 0);
+   if (ndef_message->getRecordCount() > 0)
+   {
+      ndef_message->dropAllRecords();
+   }
 
    // reset the LED
    ToggleLED(false);

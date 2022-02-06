@@ -100,8 +100,8 @@ BLECharacteristic txChar(uuidOfTxData, BLERead | BLENotify, TX_BUFFER_SIZE, TX_B
 
 //------------------------------------------------------------------------------------------------
 
-//#define READER_DEBUG                      // comment out this line to disable DEBUG functionality
-//#define READER_DEBUG_APPEND_FUNCTIONALITY // comment out this line to disable DEBUG functionality
+#define READER_DEBUG                      // comment out this line to disable DEBUG functionality
+#define READER_DEBUG_APPEND_FUNCTIONALITY // comment out this line to disable DEBUG functionality
 #define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
@@ -218,7 +218,7 @@ DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
-void ClearTheCard(uint8_t *);
+void ClearTheCard(uint8_t *, uint8_t *);
 void PublishWriteFeedback(byte, byte);
 uint16_t ReadBattery(pin_size_t, int);
 int GetPageCount(int);
