@@ -566,8 +566,8 @@ void ConnectToReader(void)
          // clear TAG contents or write complete NDEF message
          ExecuteReaderCommands(headerdata, pagedata);
 
-         // let the user know that this is an empty TAG
-         PublishResponseToBluetooth(CARD_ERROR_EMPTY);
+         // post two 0xff bytes to signify end of write sequence
+         PublishWriteFeedback(CARD_ERROR_EMPTY[0], CARD_ERROR_EMPTY[1]);
       }
 
       delete[] pagedata;
