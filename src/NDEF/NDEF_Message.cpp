@@ -260,6 +260,24 @@ void NDEF_Message::addMimeMediaRecord(String mimeType, uint8_t *payload, int pay
 }
 
 /// <summary>
+/// Add a new NDEF BINARY record to the current message with EN encoding
+/// </summary>
+void NDEF_Message::addBinaryRecord(byte *message, int messageSize)
+{
+    NDEF_Record r = NDEF_Record();
+    
+    r.setTnf(TNF_WELL_KNOWN);
+
+    uint8_t RTD_TEXT[1] = {0x54}; 
+    
+    r.setType(RTD_TEXT, sizeof(RTD_TEXT));
+
+    r.setPayload(message, messageSize);
+
+    addRecord(r);
+}
+
+/// <summary>
 /// Add a new NDEF Text record to the current message with EN encoding
 /// </summary>
 void NDEF_Message::addTextRecord(String text)

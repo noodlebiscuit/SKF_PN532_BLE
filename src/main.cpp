@@ -139,6 +139,16 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 /// <param name="messageSize">number of bytes in the PB message</param>
 void ProcessControlMessage(byte *message, int messageSize)
 {
+
+   READER_DEBUGPRINT.print(messageSize);
+   READER_DEBUGPRINT.print("> ");
+   for (int i = 0; i < messageSize; ++i)
+   {
+      READER_DEBUGPRINT.print(message[i], HEX);
+      READER_DEBUGPRINT.print(" ");
+   }
+   READER_DEBUGPRINT.println("");
+
    // initialise responses here (cannot be done within the switch() statement)
    uint8_t cachedRecordCount = 0x00;
    uint8_t encodedSizeLow = 0x00;
@@ -804,11 +814,69 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 }
 
 /// <summary>
-/// Appends a received NDEF record to an existing NDEF message
+/// Appends a received NDEF BINARY record to an existing NDEF message
+/// Note: this differs from an NDEF TEXT record in that it allows invalid
+/// characters - specifically /ESC and 0x00
 /// </summary>
 /// <param name="message">pointer to the received command message byte array</param>
 /// <param name="messageSize">number of bytes in the command message</param>
 void AddNdefRecordToMessage(byte *message, int messageSize)
+{
+   //
+   // ensure the message size does not exceed the set limit plus the 
+   // number of bytes we've already allocated for the reader commands
+   //
+   if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
+   {
+      messageSize = NTAG_SINGLE_WRITE_BYTES + 2;
+   }
+
+   // create a new ndef record string buffer
+   byte *ndefRecord = new byte[NTAG_SINGLE_WRITE_BYTES + 1];
+
+   // clear the serial read buffer contents
+   memset(ndefRecord, 0, NTAG_SINGLE_WRITE_BYTES + 1);
+
+   //
+   // strip away the first two command characters but start the payload
+   // index at THREE. This is to allow us to write both the three-bytes
+   // header as well as the message to be handled
+   //
+   uint8_t index = 0x03;
+   for (int i = 2; i < messageSize; ++i)
+   {
+      ndefRecord[index] = message[i];
+      ++index;
+   }
+
+   //
+   // add the number of bytes used to describe the format 
+   // For this reader, we'll stick to 'en'
+   //
+   ndefRecord[0] = 0x02;
+
+   // add the encloding type 'en'
+   ndefRecord[1] = 0x65;
+   ndefRecord[2] = 0x6e;
+
+   // add an NDEF binary record to the NDEF message
+   ndef_message->addBinaryRecord(ndefRecord, messageSize + 1);
+
+#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
+   DebugPrintCache();
+#endif
+
+   delete[] ndefRecord;
+}
+
+/// <summary>
+/// Appends a received NDEF TEXT record to an existing NDEF message
+/// Note: this differs from an NDEF BINARY record in that it blocks invalid
+/// characters such as /ESC and 0x00
+/// </summary>
+/// <param name="message">pointer to the received command message byte array</param>
+/// <param name="messageSize">number of bytes in the command message</param>
+void AddNdefTextRecordToMessage(byte *message, int messageSize)
 {
    // ensure the message size does not exceed the set limit
    if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
@@ -832,6 +900,10 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
 
    // add an NDEF text record to the NDEF message
    ndef_message->addTextRecord(ndefRecord);
+
+#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
+   DebugPrintCache();
+#endif
 
    delete[] ndefRecord;
 }
@@ -886,19 +958,7 @@ bool AppendToNdefRecordMessage(byte *message, int messageSize)
    }
 
 #ifdef READER_DEBUG_APPEND_FUNCTIONALITY
-   NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
-   int recordLength = debugRecord.getPayloadLength();
-   byte *debugNdefRecord = new byte[NTAG_MAX_RECORD_BYTES];
-   debugRecord.getPayload(debugNdefRecord);
-   READER_DEBUGPRINT.print(recordLength);
-   READER_DEBUGPRINT.print(":  ");
-   for (int i = 0; i < recordLength; ++i)
-   {
-      READER_DEBUGPRINT.print(debugNdefRecord[i]);
-      READER_DEBUGPRINT.print(" ");
-   }
-   READER_DEBUGPRINT.println("");
-   delete[] debugNdefRecord;
+   DebugPrintCache();
 #endif
 
    // well, if we reached this point, then all we can do is hope for the best!
@@ -1015,6 +1075,26 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE SUPPORT METHODS
+/// <summary>
+/// Prints the cache for the current NDEF record
+/// </summary>
+void DebugPrintCache()
+{
+   NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
+   int recordLength = debugRecord.getPayloadLength();
+   byte *debugNdefRecord = new byte[NTAG_MAX_RECORD_BYTES];
+   debugRecord.getPayload(debugNdefRecord);
+   READER_DEBUGPRINT.print(recordLength);
+   READER_DEBUGPRINT.print(":  ");
+   for (int i = 0; i < recordLength; ++i)
+   {
+      READER_DEBUGPRINT.print(debugNdefRecord[i], HEX);
+      READER_DEBUGPRINT.print(" ");
+   }
+   READER_DEBUGPRINT.println("");
+   delete[] debugNdefRecord;
+}
+
 /// <summary>
 /// Publish the current page number being written
 /// </summary>

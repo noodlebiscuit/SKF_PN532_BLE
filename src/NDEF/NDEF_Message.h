@@ -35,6 +35,7 @@ class NDEF_Message
         void encode(byte *data);
 
         boolean addRecord(NDEF_Record& record);
+        void addBinaryRecord(byte *message, int messageSize);
         void addMimeMediaRecord(String mimeType, String payload);
         void addMimeMediaRecord(String mimeType, byte *payload, int payloadLength);
         void addTextRecord(String text);
