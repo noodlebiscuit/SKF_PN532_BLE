@@ -220,7 +220,7 @@ enum NTAG : uint8_t
 /// <summary>
 /// MBED* control the BLE connected pin
 /// </summary>
-DigitalOut SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
+DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 //------------------------------------------------------------------------------------------------
 

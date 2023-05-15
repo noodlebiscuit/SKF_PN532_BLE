@@ -104,7 +104,7 @@ void StartBLE()
 /// <param name="central">BLE device</param>
 void onBLEConnected(BLEDevice central)
 {
-   SetConnectedToBLE = HIGH;
+   LED_SetConnectedToBLE = HIGH;
    ResetReader();
 }
 
@@ -114,7 +114,7 @@ void onBLEConnected(BLEDevice central)
 /// <param name="central">BLE device</param>
 void onBLEDisconnected(BLEDevice central)
 {
-   SetConnectedToBLE = LOW;
+   LED_SetConnectedToBLE = LOW;
 }
 
 /// <summary>
