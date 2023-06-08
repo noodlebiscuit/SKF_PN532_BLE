@@ -388,15 +388,28 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
 /// <param name="headerdata">NDEF meassage header with UUID</param>
 void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
+   // reset the CRC
+   CRC_out = 0xe4;
+
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
+
+   // generate the CRC for the header block
+   for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
+   {
+      calculateCRC(OUT, headerdata[i]);
+   }
 
    // write the header block
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
 
    // what is the total message size in bytes?
    int message_length = pagedata[1] + 3;
-   Serial.println(message_length);
+
+#ifdef READER_DEBUG
+   READER_DEBUGPRINT.print("message length: ");
+   READER_DEBUGPRINT.println(message_length);
+#endif
 
    // reset the page index
    int index = 0;
@@ -417,8 +430,23 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       message_length -= BLOCK_SIZE_BLE;
    }
 
-   // send the payload terminator
+   // append the CRC based on the transmitted payload
+   message_length = pagedata[1] + 3;
+   for (int i = 0; i < message_length; ++i)
+   {
+      calculateCRC(OUT, pagedata[i]);
+   }
+
+#ifdef READER_DEBUG
+   READER_DEBUGPRINT.print("crc: ");
+   READER_DEBUGPRINT.println(CRC_out);
+#endif
+
+   //
+   // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
+   //
    delayMicroseconds(BLOCK_WAIT_BLE);
+   EOR[1] = CRC_out;
    txChar.writeValue(EOR, 4);
 
    // release the blocker
@@ -823,7 +851,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 void AddNdefRecordToMessage(byte *message, int messageSize)
 {
    //
-   // ensure the message size does not exceed the set limit plus the 
+   // ensure the message size does not exceed the set limit plus the
    // number of bytes we've already allocated for the reader commands
    //
    if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
@@ -850,7 +878,7 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
    }
 
    //
-   // add the number of bytes used to describe the format 
+   // add the number of bytes used to describe the format
    // For this reader, we'll stick to 'en'
    //
    ndefRecord[0] = 0x02;
@@ -1194,6 +1222,10 @@ PN532_command GetCommandType(uint8_t *buffer)
    {
       return ReadBatteryVoltage;
    }
+   else if (memcmp(buffer, RESEND_FAILED_PAYLOAD, 2) == 0)
+   {
+      return ResendFailedPayload;
+   }
    else
    {
       return ReadCardContinuous;
@@ -1236,5 +1268,25 @@ void FlashLED(int onPeriod, int offPeriod)
    delay(onPeriod);
    digitalWrite(COMMS_LED, LOW);
    delay(offPeriod);
+}
+
+/// <summary>
+/// This simple method references a specific byte against a return value
+/// in a CRC lookup table. There are two CRC types, one for outgoing and
+/// another for incoming binary data. The two values CRC_in and CRC_out
+/// are local to this class.
+/// </summary>
+/// <param name="inOut">true if data is outbound to control</param>
+/// <param name="newChar">Byte to lookup</param>
+void calculateCRC(bool inOut, byte new_char)
+{
+   if (inOut == OUT) // If out-going CRC is calculated
+   {
+      CRC_out = CRC_TABLE[CRC_out ^ new_char];
+   }
+   else
+   {
+      CRC_in = CRC_TABLE[CRC_in ^ new_char];
+   }
 }
 #pragma endregion
