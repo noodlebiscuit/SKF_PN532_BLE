@@ -398,6 +398,12 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
    {
       calculateCRC(OUT, headerdata[i]);
+#ifdef READER_DEBUG
+      READER_DEBUGPRINT.print("crc: ");
+      READER_DEBUGPRINT.print(CRC_out);
+      READER_DEBUGPRINT.print("  value: ");
+      READER_DEBUGPRINT.println(headerdata[i]);
+#endif
    }
 
    // write the header block
@@ -406,10 +412,10 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // what is the total message size in bytes?
    int message_length = pagedata[1] + 3;
 
-#ifdef READER_DEBUG
-   READER_DEBUGPRINT.print("message length: ");
-   READER_DEBUGPRINT.println(message_length);
-#endif
+// #ifdef READER_DEBUG
+//    READER_DEBUGPRINT.print("message length: ");
+//    READER_DEBUGPRINT.println(message_length);
+// #endif
 
    // reset the page index
    int index = 0;
@@ -435,12 +441,14 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    for (int i = 0; i < message_length; ++i)
    {
       calculateCRC(OUT, pagedata[i]);
-   }
 
 #ifdef READER_DEBUG
-   READER_DEBUGPRINT.print("crc: ");
-   READER_DEBUGPRINT.println(CRC_out);
+      READER_DEBUGPRINT.print("crc: ");
+      READER_DEBUGPRINT.print(CRC_out);
+      READER_DEBUGPRINT.print("  value: ");
+      READER_DEBUGPRINT.println(pagedata[i]);
 #endif
+   }
 
    //
    // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
@@ -1025,7 +1033,7 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
    uint8_t totalBytes = ndef_message->getEncodedSize() + NDEF_EN_RECORD_EXTRA_PAGE_BYTES;
 
    // allocate memory for a working buffer
-   byte buffer[totalBytes];
+   byte *buffer = new byte[totalBytes];
 
    // ensure all memory is initialised with the value 0x00
    memset(buffer, 0, totalBytes);
@@ -1054,6 +1062,9 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
       ToggleLED(true);
       PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
+
+   // release buffer resouces
+   delete[] buffer;
 
    // post two 0xff bytes to signify end of write sequence
    PublishWriteFeedback(0x00, 0x00);
