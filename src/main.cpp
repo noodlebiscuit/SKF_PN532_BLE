@@ -57,7 +57,7 @@ volatile bool _enableTimeouts = false;
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 /// <summary>
 /// Configure the BLE hardware
-/// </summary>
+/// </summary>`
 void SetupBLE()
 {
    // initiate BLE comms
@@ -66,11 +66,23 @@ void SetupBLE()
    // Create BLE service and characteristics.
    BLE.setDeviceName(deviceNameOfPeripheral);
    BLE.setLocalName(localNameOfPeripheral);
-   BLE.setManufacturerData(manufacturer, 2);
+   BLE.setManufacturerData(SKF_MANUFACTURER_CODE, 2);
+   
+   // configure the main NFC communications service
    BLE.setAdvertisedService(nearFieldService);
    nearFieldService.addCharacteristic(rxChar);
    nearFieldService.addCharacteristic(txChar);
    BLE.addService(nearFieldService);
+
+   // configure the battery level service
+   BLE.setAdvertisedService(batteryService);
+   batteryService.addCharacteristic(batteryCharacteristic);
+   BLE.addService(batteryService);
+
+   // configure the device information service
+   BLE.setAdvertisedService(deviceInfoService);
+   deviceInfoService.addCharacteristic(manufacturerCharacteristic);
+   BLE.addService(deviceInfoService);
 
    // Bluetooth LE connection handlers.
    BLE.setEventHandler(BLEConnected, onBLEConnected);
@@ -81,6 +93,9 @@ void SetupBLE()
 
    // Let's tell all local devices about us.
    BLE.advertise();
+
+   
+   manufacturerCharacteristic.writeValue("SKF UK LTD", false);
 }
 
 /// <summary>
@@ -497,6 +512,7 @@ void loop(void)
          {
             timerEvent = false;
             ConnectToReader();
+            PublishBattery();
          }
       }
    }
@@ -514,6 +530,29 @@ void AtTime()
 //------------------------------------------------------------------------------------------------
 
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
+
+#define BATTERY_TIMER_LOOPS 5
+uint8_t _battery_broadcast_counts=0;
+uint8_t _counter=0;
+
+/// <summary>
+/// Main entry point for PN532 scanning
+/// </summary>
+void PublishBattery(void)
+{
+   if (++_battery_broadcast_counts > BATTERY_TIMER_LOOPS)
+   {
+      _battery_broadcast_counts = 0;
+      
+      // just publish something..
+      batteryCharacteristic.writeValue(_counter++);
+      if (_counter>0xf0)
+      {
+         _counter = 0x00;   
+      }
+   }
+}
+
 /// <summary>
 /// Main entry point for PN532 scanning
 /// </summary>
