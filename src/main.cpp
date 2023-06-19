@@ -64,25 +64,18 @@ void SetupBLE()
    StartBLE();
 
    // Create BLE service and characteristics.
-   BLE.setDeviceName(deviceNameOfPeripheral);
-   BLE.setLocalName(localNameOfPeripheral);
+   BLE.setDeviceName(PERIPERHAL_DEVICE_NAME);
+   BLE.setLocalName(LOCAL_NAME_OF_PERIPHERAL);
    BLE.setManufacturerData(SKF_MANUFACTURER_CODE, 2);
-   
+
    // configure the main NFC communications service
-   BLE.setAdvertisedService(nearFieldService);
-   nearFieldService.addCharacteristic(rxChar);
-   nearFieldService.addCharacteristic(txChar);
-   BLE.addService(nearFieldService);
+   AddDataServiceBLE();
 
    // configure the battery level service
-   BLE.setAdvertisedService(batteryService);
-   batteryService.addCharacteristic(batteryCharacteristic);
-   BLE.addService(batteryService);
+   AddBatteryServiceBLE();
 
    // configure the device information service
-   BLE.setAdvertisedService(deviceInfoService);
-   deviceInfoService.addCharacteristic(manufacturerCharacteristic);
-   BLE.addService(deviceInfoService);
+   AddDeviceServiceBLE();
 
    // Bluetooth LE connection handlers.
    BLE.setEventHandler(BLEConnected, onBLEConnected);
@@ -94,8 +87,50 @@ void SetupBLE()
    // Let's tell all local devices about us.
    BLE.advertise();
 
+   // set the default characteristics
+   manufacturerCharacteristic.writeValue(MANUFACTURER_NAME_STRING, false);
+   modelNumberCharacteristic.writeValue(MODEL_NAME_STRING, false);
+   hardwareCharacteristic.writeValue(HARDWARE_NAME_STRING, false);
+   firmwareRevisionCharacteristic.writeValue(FIRMWARE_NAME_STRING, false);
+   serialNumberCharacteristic.writeValue(SERIAL_NO_NAME_STRING, false);
+}
+
+/// <summary>
+/// Add the device information service and associate the required characteristics
+/// </summary>
+void AddDeviceServiceBLE()
+{
+   BLE.setAdvertisedService(deviceInfoService);
+   deviceInfoService.addCharacteristic(manufacturerCharacteristic);
+   deviceInfoService.addCharacteristic(modelNumberCharacteristic);
+   deviceInfoService.addCharacteristic(firmwareRevisionCharacteristic);
+   deviceInfoService.addCharacteristic(serialNumberCharacteristic);
+   deviceInfoService.addCharacteristic(hardwareCharacteristic);
+   BLE.addService(deviceInfoService);
+}
+
+/// <summary>
+/// Add the battery state service and associate the required characteristics
+/// </summary>
+void AddBatteryServiceBLE()
+{
+   BLE.setAdvertisedService(batteryService);
+   batteryService.addCharacteristic(batteryCharacteristic);
+   BLE.addService(batteryService);
+}
+
+/// <summary>
+/// Add the core data service and associate the required characteristics
+/// </summary>
+void AddDataServiceBLE()
+{
+   BLE.setAdvertisedService(nearFieldService);
+   nearFieldService.addCharacteristic(rxChar);
+   nearFieldService.addCharacteristic(txChar);
+
+
    
-   manufacturerCharacteristic.writeValue("SKF UK LTD", false);
+   BLE.addService(nearFieldService);
 }
 
 /// <summary>
@@ -532,8 +567,8 @@ void AtTime()
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
 
 #define BATTERY_TIMER_LOOPS 5
-uint8_t _battery_broadcast_counts=0;
-uint8_t _counter=0;
+uint8_t _battery_broadcast_counts = 0;
+uint8_t _counter = 0;
 
 /// <summary>
 /// Main entry point for PN532 scanning
@@ -543,12 +578,12 @@ void PublishBattery(void)
    if (++_battery_broadcast_counts > BATTERY_TIMER_LOOPS)
    {
       _battery_broadcast_counts = 0;
-      
+
       // just publish something..
       batteryCharacteristic.writeValue(_counter++);
-      if (_counter>0xf0)
+      if (_counter > 0xf0)
       {
-         _counter = 0x00;   
+         _counter = 0x00;
       }
    }
 }

@@ -18,20 +18,32 @@ using namespace std::chrono;
 
 //------------------------------------------------------------------------------------------------
 
-const char *localNameOfPeripheral = "NFC Reader";
-const char *deviceNameOfPeripheral = "NFC Reader";
+#pragma region BLUETOOTH LOW ENERGY SUPPORT
+// BLE service descriptors
+const char *UUID_SERVICE_READER = "00002A5D-0000-1000-8000-00805F9B34Fb";             // environmental sensing
+const char *UUID_SERVICE_BATTERY = "0000180F-0000-1000-8000-00805F9B34Fb";            // UUID for the battery service
+const char *UUID_SERVICE_DEVICE_INFORMATION = "0000180A-0000-1000-8000-00805F9B34Fb"; // UUID for the battery service
 
-const char *READER_SERVICE_UUID = "00002A5D-0000-1000-8000-00805F9B34Fb";             // environmental sensing
-const char *BATTERY_SERVICE_UUID = "0000180F-0000-1000-8000-00805F9B34Fb";            // UUID for the battery service
-const char *DEVICE_INFORMATION_SERVICE_UUID = "0000180A-0000-1000-8000-00805F9B34Fb"; // UUID for the battery service
+// BLE service characteristics
+const char *UUID_CHARACTERISTIC_TX = "0000290c-0000-1000-8000-00805f9b34fb";           // measurement data
+const char *UUID_CHARACTERISTIC_RX = "0000290b-0000-1000-8000-00805f9b34fb";           // configuration data (JSON)
+const char *UUID_CHARACTERISTIC_BATTERY = "00002A19-0000-1000-8000-00805f9b34fb";      // battery level characteristic
+const char *UUID_CHARACTERISTIC_MODEL = "00002A24-0000-1000-8000-00805f9b34fb";        // model number characteristic
+const char *UUID_CHARACTERISTIC_SERIAL = "00002A25-0000-1000-8000-00805f9b34fb";       // serial number characteristic
+const char *UUID_CHARACTERISTIC_FIRMWARE = "00002A26-0000-1000-8000-00805f9b34fb";     // firmware revision characteristic
+const char *UUID_CHARACTERISTIC_HARDWARE = "00002A27-0000-1000-8000-00805f9b34fb";     // hardware revision characteristic
+const char *UUID_CHARACTERISTIC_MANUFACTURER = "00002A29-0000-1000-8000-00805f9b34fb"; // manufacturers name for device information service
 
-const char *TX_CHARACTERISTIC_UUID = "0000290c-0000-1000-8000-00805f9b34fb";      // measurement data
-const char *RX_CHARACTERISTIC_UUID = "0000290b-0000-1000-8000-00805f9b34fb";      // configuration data (JSON)
-const char *BATTERY_CHARACTERISTIC_UUID = "00002A19-0000-1000-8000-00805f9b34fb"; // battery level characteristic
+// device characteristics
+const char *LOCAL_NAME_OF_PERIPHERAL = "NFC Reader";
+const char *PERIPERHAL_DEVICE_NAME = "NFC Reader";
+const char *MANUFACTURER_NAME_STRING = "SKF (U.K.) Limited";
+const char *MODEL_NAME_STRING = "EXTERNAL-NFC-READER";
+const char *HARDWARE_NAME_STRING = "PROTOTYPE 2";
+const char *FIRMWARE_NAME_STRING = "0.3.44 DEV";
+const char *SERIAL_NO_NAME_STRING = "220615-AP-01";
 
-const char *MANUFACTURER_CHARACTERISTIC_UUID = "0x2A29-0000-1000-8000-00805f9b34fb";
-
-// set the manufacturer code to 'SKF (`U.K.) Li`mited'
+// set the manufacturer code to 'SKF (U.K.) Limited'
 const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
 
 // Setup the incoming data characteristic (RX).
@@ -46,17 +58,24 @@ const int TX_BUFFER_SIZE = 32;
 bool TX_BUFFER_FIXED_LENGTH = false;
 
 // add each of the core services
-BLEService nearFieldService(READER_SERVICE_UUID);
-BLEService deviceInfoService(DEVICE_INFORMATION_SERVICE_UUID);
-BLEService batteryService(BATTERY_SERVICE_UUID);
+BLEService nearFieldService(UUID_SERVICE_READER);
+BLEService deviceInfoService(UUID_SERVICE_DEVICE_INFORMATION);
+BLEService batteryService(UUID_SERVICE_BATTERY);
 
 // RX / TX Characteristics for BYTE ARRAYS
-BLECharacteristic rxChar(RX_CHARACTERISTIC_UUID, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
-BLECharacteristic txChar(TX_CHARACTERISTIC_UUID, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic rxChar(UUID_CHARACTERISTIC_RX, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
+BLECharacteristic txChar(UUID_CHARACTERISTIC_TX, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 
-BLEByteCharacteristic batteryCharacteristic(BATTERY_CHARACTERISTIC_UUID, BLERead | BLENotify);
+// battery characteristics
+BLEByteCharacteristic batteryCharacteristic(UUID_CHARACTERISTIC_BATTERY, BLERead | BLENotify);
 
-BLECharacteristic manufacturerCharacteristic(MANUFACTURER_CHARACTERISTIC_UUID, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+// device characteristics
+BLECharacteristic manufacturerCharacteristic(UUID_CHARACTERISTIC_MANUFACTURER, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic firmwareRevisionCharacteristic(UUID_CHARACTERISTIC_FIRMWARE, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic modelNumberCharacteristic(UUID_CHARACTERISTIC_MODEL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic hardwareCharacteristic(UUID_CHARACTERISTIC_HARDWARE, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+#pragma endregion
 
 //------------------------------------------------------------------------------------------------
 
@@ -273,6 +292,9 @@ DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
+void AddBatteryServiceBLE();
+void AddDataServiceBLE();
+void AddDeviceServiceBLE();
 bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);
