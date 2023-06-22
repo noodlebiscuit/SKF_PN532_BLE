@@ -93,6 +93,9 @@ void SetupBLE()
    hardwareCharacteristic.writeValue(HARDWARE_NAME_STRING, false);
    firmwareRevisionCharacteristic.writeValue(FIRMWARE_NAME_STRING, false);
    serialNumberCharacteristic.writeValue(SERIAL_NO_NAME_STRING, false);
+
+   // register the current battery voltage
+   PublishBattery();
 }
 
 /// <summary>
@@ -127,7 +130,6 @@ void AddDataServiceBLE()
    BLE.setAdvertisedService(nearFieldService);
    nearFieldService.addCharacteristic(rxChar);
    nearFieldService.addCharacteristic(txChar);
-
    BLE.addService(nearFieldService);
 }
 
