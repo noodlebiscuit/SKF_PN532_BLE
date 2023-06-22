@@ -128,8 +128,6 @@ void AddDataServiceBLE()
    nearFieldService.addCharacteristic(rxChar);
    nearFieldService.addCharacteristic(txChar);
 
-
-   
    BLE.addService(nearFieldService);
 }
 
@@ -523,10 +521,11 @@ void setup(void)
    // configure board to read RFID tags
    nfc.SAMConfig();
 
-   uint32_t versiondata = nfc.getFirmwareVersion();
-   Serial.print(versiondata);
+   // get the NFC firmware
+   uint32_t adaFruit_NFC_firmare_version = nfc.getFirmwareVersion();
+   Serial.print(adaFruit_NFC_firmare_version);
 
-   // lastly we setup the BLE layer
+   // now we setup all services within the BLE layer
    SetupBLE();
 }
 
@@ -547,7 +546,6 @@ void loop(void)
          {
             timerEvent = false;
             ConnectToReader();
-            PublishBattery();
          }
       }
    }
@@ -565,27 +563,17 @@ void AtTime()
 //------------------------------------------------------------------------------------------------
 
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
-
-#define BATTERY_TIMER_LOOPS 5
-uint8_t _battery_broadcast_counts = 0;
-uint8_t _counter = 0;
-
 /// <summary>
-/// Main entry point for PN532 scanning
+/// Stop and update the battery voltage
 /// </summary>
 void PublishBattery(void)
 {
-   if (++_battery_broadcast_counts > BATTERY_TIMER_LOOPS)
-   {
-      _battery_broadcast_counts = 0;
-
-      // just publish something..
-      batteryCharacteristic.writeValue(_counter++);
-      if (_counter > 0xf0)
-      {
-         _counter = 0x00;
-      }
-   }
+   uint8_t *responsePayload = new uint8_t[2];
+   uint16_t batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
+   responsePayload[0] = (uint8_t)(batteryVoltage >> 8);
+   responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
+   batteryCharacteristic.writeValue(responsePayload, 2);
+   delete[] responsePayload;
 }
 
 /// <summary>

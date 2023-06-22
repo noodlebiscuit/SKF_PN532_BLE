@@ -20,7 +20,7 @@ using namespace std::chrono;
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 // BLE service descriptors
-const char *UUID_SERVICE_READER = "00002A5D-0000-1000-8000-00805F9B34Fb";             // environmental sensing
+const char *UUID_SERVICE_READER = "0000181a-0000-1000-8000-00805f9b34fb";             // environmental sensing
 const char *UUID_SERVICE_BATTERY = "0000180F-0000-1000-8000-00805F9B34Fb";            // UUID for the battery service
 const char *UUID_SERVICE_DEVICE_INFORMATION = "0000180A-0000-1000-8000-00805F9B34Fb"; // UUID for the battery service
 
@@ -67,7 +67,7 @@ BLECharacteristic rxChar(UUID_CHARACTERISTIC_RX, BLEWriteWithoutResponse | BLEWr
 BLECharacteristic txChar(UUID_CHARACTERISTIC_TX, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 
 // battery characteristics
-BLEByteCharacteristic batteryCharacteristic(UUID_CHARACTERISTIC_BATTERY, BLERead | BLENotify);
+BLECharacteristic batteryCharacteristic(UUID_CHARACTERISTIC_BATTERY, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 
 // device characteristics
 BLECharacteristic manufacturerCharacteristic(UUID_CHARACTERISTIC_MANUFACTURER, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
