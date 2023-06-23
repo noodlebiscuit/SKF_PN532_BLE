@@ -40,8 +40,8 @@ const char *PERIPERHAL_DEVICE_NAME = "NFC Reader";
 const char *MANUFACTURER_NAME_STRING = "SKF (U.K.) Limited";
 const char *MODEL_NAME_STRING = "EXTERNAL-NFC-READER";
 const char *HARDWARE_NAME_STRING = "PROTOTYPE 2";
-const char *FIRMWARE_NAME_STRING = "0.3.44 DEV";
-const char *SERIAL_NO_NAME_STRING = "220615-AP-01";
+const char *FIRMWARE_NAME_STRING = "0.4.06 DEV";
+const char *SERIAL_NO_NAME_STRING = "PT-01";
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
 const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
@@ -189,10 +189,10 @@ uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x07};
 // > what is the total number of bytes in the NDEF cache?
 uint8_t GET_ENCODED_SIZE[OPCODE_BYTES] = {0x00, 0x08};
 
-// > read the current battery voltage
-uint8_t READ_BATTERY_VOLTAGE[OPCODE_BYTES] = {0x00, 0x09};
+// > the previous payload was received without errors
+uint8_t LAST_PAYLOAD_RECEIVED[OPCODE_BYTES] = {0x00, 0x09};
 
-// > a previous payload failed and needs to be resent
+// > the previous payload failed and needs to be resent
 uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 
 //------------------------------------------------------------------------------------------------
@@ -270,7 +270,7 @@ enum PN532_command : uint8_t
     PublishCacheToCard,
     EraseCardContents,
     GetEncodedSize,
-    ReadBatteryVoltage,
+    LastPayloadReceived,
     ResendFailedPayload
 };
 
