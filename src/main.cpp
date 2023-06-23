@@ -324,24 +324,6 @@ void ProcessControlMessage(byte *message, int messageSize)
       break;
 
    // *************************************************************************
-   // read and return the current battery voltage
-   // *************************************************************************
-   case ReadBatteryVoltage:
-      batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
-      Serial.println(batteryVoltage);
-      responsePayload[0] = (uint8_t)(batteryVoltage >> 8);
-      responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
-      _command = ReadCardContinuous;
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Read the current battery voltage");
-#endif
-      break;
-
-   // *************************************************************************
    // count and return the encoded message size in bytes
    // *************************************************************************
    case GetEncodedSize:
@@ -1292,10 +1274,6 @@ PN532_command GetCommandType(uint8_t *buffer)
    else if (memcmp(buffer, GET_ENCODED_SIZE, 2) == 0)
    {
       return GetEncodedSize;
-   }
-   else if (memcmp(buffer, READ_BATTERY_VOLTAGE, 2) == 0)
-   {
-      return ReadBatteryVoltage;
    }
    else if (memcmp(buffer, RESEND_FAILED_PAYLOAD, 2) == 0)
    {
