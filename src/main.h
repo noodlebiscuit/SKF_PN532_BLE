@@ -97,7 +97,8 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 #define COMMAND_LED_FLASH 20       // wait 20ms between each BLE transmit packet
 #define TICK_RATE_MS 200ms         // update rate for the mbed timer
 #define READ_BATTERY_AVG 10        // how many samples to average to calculate the supply voltage
-#define BATTERY_UPDATE_COUNTER 5   // how many MBED timer clicks before we update the battery
+#define BATTERY_UPDATE_COUNTER 300 // how many MBED timer clicks before we update the battery
+#define BATTERY_DESCALE 15.163     // multiply ADC value with this to get the measured mV  
 
 //------------------------------------------------------------------------------------------------
 
@@ -137,7 +138,7 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 
 // DEBUG CONTROLLERS - REMOVE COMMENT BLOCKS TO ENABLE OUTPUT OVER SERIAL
 
-#define READER_DEBUG
+// #define READER_DEBUG
 // #define READER_DEBUG_APPEND_FUNCTIONALITY
 
 #define READER_DEBUGPRINT Serial

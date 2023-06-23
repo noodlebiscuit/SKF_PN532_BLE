@@ -52,7 +52,7 @@ NDEF_Message *ndef_message = new NDEF_Message();
 volatile bool _enableTimeouts = false;
 
 // when incremented to a specified value, publish the current battery level
-uint8_t _batteryCount = BATTERY_UPDATE_COUNTER;
+uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -413,7 +413,7 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
       value += (float)analogRead(PIN);
       delayMicroseconds(BATTERY_READ_DELAY);
    }
-   value = (value * 15.163) / average;
+   value = (value * BATTERY_DESCALE) / average;
    return (uint16_t)(value);
 }
 
@@ -581,7 +581,7 @@ void PublishBattery()
       // increment the battery read count
       if (++_batteryCount > BATTERY_UPDATE_COUNTER)
       {
-         _batteryCount = 0x00;
+         _batteryCount = 0x0000;
          uint8_t *responsePayload = new uint8_t[2];
          uint16_t batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
 #ifdef READER_DEBUG
