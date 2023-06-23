@@ -400,20 +400,21 @@ void ProcessControlMessage(byte *message, int messageSize)
 }
 
 /// <summary>
-/// Reads and returns an averaged value for the 3.7V Lithium ion battery
+/// Reads and returns an averaged value for the 3.7V Lithium ion battery in MV
 /// </summary>
 /// <param name="PIN">what analogue pin are we connecting to?</param>
-/// <param name="average">how many samples to read and average. Must not be greater than 10!</param>
-/// <returns>read battery voltage between 0 and 2047</returns>
+/// <param name="average">how many samples to read and average</param>
+/// <returns>measure voltage as a big-endian integer</returns>
 uint16_t ReadBattery(pin_size_t PIN, int average)
 {
-   int16_t value = 0x0000;
+   float value = 0.0;
    for (int i = 0; i < average; ++i)
    {
-      value += analogRead(PIN);
+      value += (float)analogRead(PIN);
       delayMicroseconds(BATTERY_READ_DELAY);
    }
-   return (uint16_t)(value / average);
+   value = (value * 15.163) / average;
+   return (uint16_t)(value);
 }
 
 /// <summary>
