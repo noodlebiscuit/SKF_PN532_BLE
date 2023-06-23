@@ -50,6 +50,9 @@ NDEF_Message *ndef_message = new NDEF_Message();
 
 // enable TIMEOUTS (for WRITE or ONE SHOT)?
 volatile bool _enableTimeouts = false;
+
+// when incremented to a specified value, publish the current battery level
+uint8_t _batteryCount = BATTERY_UPDATE_COUNTER;
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -400,7 +403,7 @@ void ProcessControlMessage(byte *message, int messageSize)
 /// Reads and returns an averaged value for the 3.7V Lithium ion battery
 /// </summary>
 /// <param name="PIN">what analogue pin are we connecting to?</param>
-/// <param name="average">how many samples to read and average</param>
+/// <param name="average">how many samples to read and average. Must not be greater than 10!</param>
 /// <returns>read battery voltage between 0 and 2047</returns>
 uint16_t ReadBattery(pin_size_t PIN, int average)
 {
@@ -408,7 +411,7 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
    for (int i = 0; i < average; ++i)
    {
       value += analogRead(PIN);
-      delayMicroseconds(BLOCK_WAIT_BLE);
+      delayMicroseconds(BATTERY_READ_DELAY);
    }
    return (uint16_t)(value / average);
 }
@@ -548,6 +551,7 @@ void loop(void)
          {
             timerEvent = false;
             ConnectToReader();
+            PublishBattery();
          }
       }
    }
@@ -566,16 +570,29 @@ void AtTime()
 
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
 /// <summary>
-/// Stop and update the battery voltage
+/// Publish the current battery voltage, if and when it's possible to do so
 /// </summary>
-void PublishBattery(void)
+void PublishBattery()
 {
-   uint8_t *responsePayload = new uint8_t[2];
-   uint16_t batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
-   responsePayload[0] = (uint8_t)(batteryVoltage >> 8);
-   responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
-   batteryCharacteristic.writeValue(responsePayload, 2);
-   delete[] responsePayload;
+   // if the reader is blocked, then bypass this method completely
+   if (!(_blockReader | _readerBusy))
+   {
+      // increment the battery read count
+      if (++_batteryCount > BATTERY_UPDATE_COUNTER)
+      {
+         _batteryCount = 0x00;
+         uint8_t *responsePayload = new uint8_t[2];
+         uint16_t batteryVoltage = ReadBattery(A0, READ_BATTERY_AVG);
+#ifdef READER_DEBUG
+         READER_DEBUGPRINT.print("Battery: ");
+         READER_DEBUGPRINT.println(batteryVoltage);
+#endif
+         responsePayload[0] = (uint8_t)(batteryVoltage >> 8);
+         responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
+         batteryCharacteristic.writeValue(responsePayload, 2);
+         delete[] responsePayload;
+      }
+   }
 }
 
 /// <summary>

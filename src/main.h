@@ -79,23 +79,25 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 
 //------------------------------------------------------------------------------------------------
 
-#define UID_LENGTH 7            // byte size of NTAG UID
-#define BLOCK_SIZE 16           // block size in bytes
-#define BLOCK_COUNT 16          // number of blocks to read from the card
-#define TOTAL_BLOCKS 86         // total number of NDEF blocks
-#define BYTES_PER_BLOCK 4       // number of bytes per block
-#define SERIAL_BAUD_RATE 115200 // serial port baud rate
-#define WAIT_FOR_CARD_MS 100    // how long to wait for a card before continuing
-#define COMMAND_BYTES 6         // how many NDEF records should we ordinarily expect?
-#define SYSTEM_TIMEOUT 30000    // reset system to default after this mS
-#define COMMAND_TIMEOUT 1000    // reset system to default after this mS
-#define NEXT_SCAN_DELAY 1000    // how long to wait before the next scan
-#define PLEASE_WAIT 0x2e        // full stop character
-#define BLOCK_SIZE_BLE 16       // block size in bytes
-#define BLOCK_WAIT_BLE 50000    // wait 50ms between each BLE transmit packet
-#define COMMAND_LED_FLASH 20    // wait 20ms between each BLE transmit packet
-#define TICK_RATE_MS 200ms      // update rate for the mbed timer
-#define READ_BATTERY_AVG 10     // how many samples to average to calculate the supply voltage
+#define UID_LENGTH 7               // byte size of NTAG UID
+#define BLOCK_SIZE 16              // block size in bytes
+#define BLOCK_COUNT 16             // number of blocks to read from the card
+#define TOTAL_BLOCKS 86            // total number of NDEF blocks
+#define BYTES_PER_BLOCK 4          // number of bytes per block
+#define SERIAL_BAUD_RATE 115200    // serial port baud rate
+#define WAIT_FOR_CARD_MS 100       // how long to wait for a card before continuing
+#define COMMAND_BYTES 6            // how many NDEF records should we ordinarily expect?
+#define SYSTEM_TIMEOUT 30000       // reset system to default after this mS
+#define COMMAND_TIMEOUT 1000       // reset system to default after this mS
+#define NEXT_SCAN_DELAY 1000       // how long to wait before the next scan
+#define PLEASE_WAIT 0x2e           // full stop character
+#define BLOCK_SIZE_BLE 16          // block size in bytes
+#define BLOCK_WAIT_BLE 50000       // wait 50ms between each BLE transmit packet
+#define BATTERY_READ_DELAY 1000    // wait 1ms between each read of the battery pin
+#define COMMAND_LED_FLASH 20       // wait 20ms between each BLE transmit packet
+#define TICK_RATE_MS 200ms         // update rate for the mbed timer
+#define READ_BATTERY_AVG 10        // how many samples to average to calculate the supply voltage
+#define BATTERY_UPDATE_COUNTER 5   // how many MBED timer clicks before we update the battery
 
 //------------------------------------------------------------------------------------------------
 
@@ -135,7 +137,7 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 
 // DEBUG CONTROLLERS - REMOVE COMMENT BLOCKS TO ENABLE OUTPUT OVER SERIAL
 
-// #define READER_DEBUG
+#define READER_DEBUG
 // #define READER_DEBUG_APPEND_FUNCTIONALITY
 
 #define READER_DEBUGPRINT Serial
@@ -316,7 +318,7 @@ void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void ProcessControlMessage(byte *, int);
-void PublishBattery(void);
+void PublishBattery();
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(uint8_t *);
 void PublishWriteFeedback(byte, byte);
