@@ -87,9 +87,9 @@ void SetupBLE()
    AddDeviceServiceBLE();
 
    // configure the NORDIC SEMICONDUCTORS SSP UART service and characteristics
-//#ifdef NORDIC_SPP_FUNCTIONALITY
+   // #ifdef NORDIC_SPP_FUNCTIONALITY
    AddNordicUartServiceBLE();
-//#endif
+   // #endif
 
    // Bluetooth LE connection handlers.
    BLE.setEventHandler(BLEConnected, onBLEConnected);
@@ -481,11 +481,13 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       if (message_length >= BLOCK_SIZE_BLE)
       {
          txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
+         //transmitCharacteristic.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
          index++;
       }
       else
       {
          txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length + 1);
+         //transmitCharacteristic.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length + 1);
       }
       message_length -= BLOCK_SIZE_BLE;
    }
@@ -497,17 +499,13 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       calculateCRC(OUT, pagedata[i]);
    }
 
-
-   for (uint8_t i=0x00; i<0xff; ++i)
-   WriteToSPP(i);
-   WriteToSPP(0x0a);
-   FlushSPP();
    //
    // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
    //
    delayMicroseconds(BLOCK_WAIT_BLE);
    EOR[1] = CRC_out;
    txChar.writeValue(EOR, 4);
+   //transmitCharacteristic.writeValue(EOR, 4);
 
    // release the blocker
    _readerBusy = false;
@@ -616,7 +614,7 @@ void PublishBattery()
 ///
 /// @brief Main entry point for PN532 scanning
 /// @param void
-/// 
+///
 void ConnectToReader(void)
 {
    // if the reader is blocked, then bypass this method completely
@@ -709,7 +707,7 @@ void ConnectToReader(void)
    }
 }
 
-/// 
+///
 /// @brief Reads the card contents and returns over Bluetooth
 /// @param pagedata returns the NDEF message payload
 /// @param headerdata returns the NDEF meassage header
@@ -780,11 +778,11 @@ uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
 }
 
 ///
-/// @brief Reads the cards CAPACITY CONTAINER (from Page #3) and returns the TAG type 
+/// @brief Reads the cards CAPACITY CONTAINER (from Page #3) and returns the TAG type
 /// @brief this page spans bytes 12, 13, 14 and 15, where 14 is the card type
 /// @param headerdata reference to the read NDEF message header
 /// @return NTAG card version (i.e. NTAG-215)
-/// 
+///
 NTAG GetCardType(uint8_t *headerdata)
 {
    if ((headerdata[12] == CC[0]) & (headerdata[13] == CC[1]) & (headerdata[15] == CC[3]))
@@ -1260,7 +1258,7 @@ void ResetReader()
    _readerBusy = false;
    _blockReader = false;
    _command = ReadCardContinuous;
-   
+
    // reset the internal UART buffers
    _numAvailableLinesSPP = 0;
    _transmitBufferLengthSPP = 0;
@@ -1399,9 +1397,11 @@ void calculateCRC(bool inOut, byte new_char)
 
 //-------------------------------------------------------------------------------------------------
 
-/// <summary>
-/// Event raised on data being received on the NORDIC SPP UART
-/// </summary>
+///
+/// @brief EVENT raised on data being received on the NORDIC SPP UART
+/// @param data
+/// @param size
+///
 void onReceive(const uint8_t *data, size_t size)
 {
    for (size_t i = 0; i < min(size, sizeof(_receiveBufferSPP)); i++)
@@ -1414,17 +1414,19 @@ void onReceive(const uint8_t *data, size_t size)
    }
 }
 
-/// <summary>
-/// Flashes the COMMS LED
-/// </summary>
+///
+/// @brief EVENT on data written to SPP
+/// @param central
+/// @param characteristic
+///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
    onReceive(characteristic.value(), characteristic.valueLength());
 }
 
-/// <summary>
-/// Check to see if new data is waiting in the SPP receive buffer
-/// </summary>
+///
+/// @brief Check to see if new data is waiting in the SPP receive buffer
+///
 void PollSPP()
 {
    if (millis() - _lastFlushTime > 100)
@@ -1437,9 +1439,9 @@ void PollSPP()
    }
 }
 
-/// <summary>
-/// Release event handler
-/// </summary>
+///
+/// @brief Release event handler
+///
 void EndSPP()
 {
    receiveCharacteristic.setEventHandler(BLEWritten, NULL);
@@ -1447,17 +1449,19 @@ void EndSPP()
    FlushSPP();
 }
 
-/// <summary>
-/// How many bytes are available for use by the NORDIC SPP receiver?
-/// </summary>
+///
+/// @brief How many bytes are available for use by the NORDIC SPP receiver?
+/// @return byte count
+///
 size_t AvailableSPP()
 {
    _receiveBufferSPP.getLength();
 }
 
-/// <summary>
-/// How many bytes are available in the NORDIC SPP receive buffer?
-/// </summary>
+///
+/// @brief How many bytes are available in the NORDIC SPP receive buffer?
+/// @return byte count
+///
 int PeekSPP()
 {
    if (_receiveBufferSPP.getLength() == 0)
@@ -1465,9 +1469,10 @@ int PeekSPP()
    return _receiveBufferSPP.get(0);
 }
 
-/// <summary>
-/// 
-/// </summary>
+///
+/// @brief
+/// @return
+///
 int ReadSPP()
 {
    int result = _receiveBufferSPP.pop();
@@ -1478,9 +1483,11 @@ int ReadSPP()
    return result;
 }
 
-/// <summary>
-/// Write a single byte to the NORDIC UART SPP
-/// </summary>
+///
+/// @brief Write a single byte to the NORDIC UART SPP
+/// @param byte value to write
+/// @return
+///
 size_t WriteToSPP(uint8_t byte)
 {
    if (transmitCharacteristic.subscribed() == false)
@@ -1496,9 +1503,9 @@ size_t WriteToSPP(uint8_t byte)
    return 1;
 }
 
-/// <summary>
-/// 
-/// </summary>
+///
+/// @brief publish all data in the buffer to the UART TX and then clear buffer contents
+///
 void FlushSPP()
 {
    if (_transmitBufferLengthSPP > 0)
@@ -1510,17 +1517,21 @@ void FlushSPP()
    BLE.poll();
 }
 
-/// <summary>
-/// 
-/// </summary>
+///
+/// @brief
+/// @return
+///
 size_t AvailableLinesSPP()
 {
    return _numAvailableLinesSPP;
 }
 
-/// <summary>
-/// 
-/// </summary>
+///
+/// @brief
+/// @param buffer
+/// @param bufferSize
+/// @return
+///
 size_t PeekLineSPP(char *buffer, size_t bufferSize)
 {
    if (AvailableLinesSPP() == 0)
@@ -1545,9 +1556,12 @@ size_t PeekLineSPP(char *buffer, size_t bufferSize)
    return i;
 }
 
-/// <summary>
-/// 
-/// </summary>
+///
+/// @brief
+/// @param buffer
+/// @param bufferSize
+/// @return
+///
 size_t ReadLineSPP(char *buffer, size_t bufferSize)
 {
    if (AvailableLinesSPP() == 0)
@@ -1572,29 +1586,33 @@ size_t ReadLineSPP(char *buffer, size_t bufferSize)
    return i;
 }
 
-/// <summary>
-/// 
-/// </summary>
-size_t PrintSPP(const uint8_t *str)
+///
+/// @brief Writes an unterminated string to the SPP
+/// @param text string to be written
+/// @return number of characters written
+///
+size_t PrintSPP(const char *text)
 {
    if (transmitCharacteristic.subscribed() == false)
    {
       return 0;
    }
    size_t written = 0;
-   for (size_t i = 0; str[i] != '\0'; i++)
+   for (size_t i = 0; text[i] != '\0'; i++)
    {
-      written += WriteToSPP(str[i]);
+      written += WriteToSPP(text[i]);
    }
    return written;
 }
 
-/// <summary>
-/// 
-/// </summary>
-size_t PrintlnSPP(const uint8_t *str)
+///
+/// @brief Write a string to the SPP and terminate with an LF and CR
+/// @param text string to be written
+/// @return number of characters written
+///
+size_t PrintlnSPP(const char *text)
 {
-   return PrintSPP(str) + WriteToSPP('\n');
+   return PrintSPP(text) + WriteToSPP('\n');
 }
 
 //-------------------------------------------------------------------------------------------------
