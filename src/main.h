@@ -20,28 +20,31 @@ using namespace std::chrono;
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 // BLE service descriptors
-const char *UUID_SERVICE_READER = "0000181a-0000-1000-8000-00805f9b34fb";             // environmental sensing
-const char *UUID_SERVICE_BATTERY = "0000180F-0000-1000-8000-00805F9B34Fb";            // UUID for the battery service
-const char *UUID_SERVICE_DEVICE_INFORMATION = "0000180A-0000-1000-8000-00805F9B34Fb"; // UUID for the battery service
+#define UUID_SERVICE_READER "0000181a-0000-1000-8000-00805f9b34fb"             // environmental sensing
+#define UUID_SERVICE_BATTERY "0000180F-0000-1000-8000-00805F9B34Fb"            // UUID for the battery service
+#define UUID_SERVICE_DEVICE_INFORMATION "0000180A-0000-1000-8000-00805F9B34Fb" // UUID for the battery service
+#define BLE_UART_SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UUID for NORDIC SPP UART
 
 // BLE service characteristics
-const char *UUID_CHARACTERISTIC_TX = "0000290c-0000-1000-8000-00805f9b34fb";           // measurement data
-const char *UUID_CHARACTERISTIC_RX = "0000290b-0000-1000-8000-00805f9b34fb";           // configuration data (JSON)
-const char *UUID_CHARACTERISTIC_BATTERY = "00002A19-0000-1000-8000-00805f9b34fb";      // battery level characteristic
-const char *UUID_CHARACTERISTIC_MODEL = "00002A24-0000-1000-8000-00805f9b34fb";        // model number characteristic
-const char *UUID_CHARACTERISTIC_SERIAL = "00002A25-0000-1000-8000-00805f9b34fb";       // serial number characteristic
-const char *UUID_CHARACTERISTIC_FIRMWARE = "00002A26-0000-1000-8000-00805f9b34fb";     // firmware revision characteristic
-const char *UUID_CHARACTERISTIC_HARDWARE = "00002A27-0000-1000-8000-00805f9b34fb";     // hardware revision characteristic
-const char *UUID_CHARACTERISTIC_MANUFACTURER = "00002A29-0000-1000-8000-00805f9b34fb"; // manufacturers name for device information service
+#define UUID_CHARACTERISTIC_TX "0000290c-0000-1000-8000-00805f9b34fb"           // measurement data
+#define UUID_CHARACTERISTIC_RX "0000290b-0000-1000-8000-00805f9b34fb"           // configuration data (JSON)
+#define UUID_CHARACTERISTIC_BATTERY "00002A19-0000-1000-8000-00805f9b34fb"      // battery level characteristic
+#define UUID_CHARACTERISTIC_MODEL "00002A24-0000-1000-8000-00805f9b34fb"        // model number characteristic
+#define UUID_CHARACTERISTIC_SERIAL "00002A25-0000-1000-8000-00805f9b34fb"       // serial number characteristic
+#define UUID_CHARACTERISTIC_FIRMWARE "00002A26-0000-1000-8000-00805f9b34fb"     // firmware revision characteristic
+#define UUID_CHARACTERISTIC_HARDWARE "00002A27-0000-1000-8000-00805f9b34fb"     // hardware revision characteristic
+#define UUID_CHARACTERISTIC_MANUFACTURER "00002A29-0000-1000-8000-00805f9b34fb" // manufacturers name for device information service
+#define BLE_CHARACTERISTIC_UUID_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SPP UART receive data
+#define BLE_CHARACTERISTIC_UUID_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SSP UART transmit data
 
 // device characteristics
-const char *LOCAL_NAME_OF_PERIPHERAL = "NFC Reader";
-const char *PERIPERHAL_DEVICE_NAME = "NFC Reader";
-const char *MANUFACTURER_NAME_STRING = "SKF (U.K.) Limited";
-const char *MODEL_NAME_STRING = "EXTERNAL-NFC-READER";
-const char *HARDWARE_NAME_STRING = "PROTOTYPE 2";
-const char *FIRMWARE_NAME_STRING = "0.4.06 DEV";
-const char *SERIAL_NO_NAME_STRING = "PT-01";
+#define LOCAL_NAME_OF_PERIPHERAL "NFC Reader"
+#define PERIPERHAL_DEVICE_NAME "NFC Reader"
+#define MANUFACTURER_NAME_STRING "SKF (U.K.) Limited"
+#define MODEL_NAME_STRING "EXTERNAL-NFC-READER"
+#define HARDWARE_NAME_STRING "PROTOTYPE 2"
+#define FIRMWARE_NAME_STRING "0.4.06 DEV"
+#define SERIAL_NO_NAME_STRING "PT-01"
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
 const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
@@ -49,6 +52,8 @@ const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
 // Setup the incoming data characteristic (RX).
 const int RX_BUFFER_SIZE = 32;
 bool RX_BUFFER_FIXED_LENGTH = false;
+const int BLE_ATTRIBUTE_MAX_VALUE_LENGTH = 20;
+const int BLE_SERIAL_RECEIVE_BUFFER_SIZE = 256;
 
 // Buffer to read samples into, each sample is 16-bits
 uint8_t configBuffer[RX_BUFFER_SIZE];
@@ -61,6 +66,7 @@ bool TX_BUFFER_FIXED_LENGTH = false;
 BLEService nearFieldService(UUID_SERVICE_READER);
 BLEService deviceInfoService(UUID_SERVICE_DEVICE_INFORMATION);
 BLEService batteryService(UUID_SERVICE_BATTERY);
+BLEService uartService(BLE_UART_SERVICE_UUID);
 
 // RX / TX Characteristics for BYTE ARRAYS
 BLECharacteristic rxChar(UUID_CHARACTERISTIC_RX, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
@@ -75,6 +81,63 @@ BLECharacteristic firmwareRevisionCharacteristic(UUID_CHARACTERISTIC_FIRMWARE, B
 BLECharacteristic modelNumberCharacteristic(UUID_CHARACTERISTIC_MODEL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 BLECharacteristic hardwareCharacteristic(UUID_CHARACTERISTIC_HARDWARE, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic receiveCharacteristic(BLE_CHARACTERISTIC_UUID_RX, BLEWriteWithoutResponse | BLEWrite, BLE_ATTRIBUTE_MAX_VALUE_LENGTH);
+BLECharacteristic transmitCharacteristic(BLE_CHARACTERISTIC_UUID_TX, BLERead | BLENotify, BLE_ATTRIBUTE_MAX_VALUE_LENGTH);
+#pragma endregion
+
+//------------------------------------------------------------------------------------------------
+
+#pragma region NORDIC SERIAL PORT EMULATION
+
+
+
+
+
+
+// define services and characteristics
+
+
+
+template <size_t N>
+class ByteRingBuffer
+{
+private:
+    uint8_t ringBuffer[N];
+    size_t newestIndex = 0;
+    size_t length = 0;
+
+public:
+    void add(uint8_t value)
+    {
+        ringBuffer[newestIndex] = value;
+        newestIndex = (newestIndex + 1) % N;
+        length = min(length + 1, N);
+    }
+    int pop()
+    { // pops the oldest value off the ring buffer
+        if (length == 0)
+        {
+            return -1;
+        }
+        uint8_t result = ringBuffer[(N + newestIndex - length) % N];
+        length -= 1;
+        return result;
+    }
+    void clear()
+    {
+        newestIndex = 0;
+        length = 0;
+    }
+    int get(size_t index)
+    { // this.get(0) is the oldest value, this.get(this.getLength() - 1) is the newest value
+        if (index < 0 || index >= length)
+        {
+            return -1;
+        }
+        return ringBuffer[(N + newestIndex - length + index) % N];
+    }
+    size_t getLength() { return length; }
+};
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -98,7 +161,7 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 #define TICK_RATE_MS 200ms         // update rate for the mbed timer
 #define READ_BATTERY_AVG 10        // how many samples to average to calculate the supply voltage
 #define BATTERY_UPDATE_COUNTER 300 // how many MBED timer clicks before we update the battery
-#define BATTERY_DESCALE 15.163     // multiply ADC value with this to get the measured mV  
+#define BATTERY_DESCALE 15.163     // multiply ADC value with this to get the measured mV
 
 //------------------------------------------------------------------------------------------------
 
@@ -142,6 +205,11 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 // #define READER_DEBUG_APPEND_FUNCTIONALITY
 
 #define READER_DEBUGPRINT Serial
+
+//------------------------------------------------------------------------------------------------
+
+// UNCOMMENT THIS LINE TO ALLOW SUPPORT FOR NORDIC SPP UART
+#define NORDIC_SPP_FUNCTIONALITY
 
 //------------------------------------------------------------------------------------------------
 
@@ -298,6 +366,7 @@ DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 void AddBatteryServiceBLE();
 void AddDataServiceBLE();
 void AddDeviceServiceBLE();
+void AddNordicUartServiceBLE();
 bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);
@@ -323,11 +392,28 @@ void PublishBattery();
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(uint8_t *);
 void PublishWriteFeedback(byte, byte);
+void PublishHardwareDetails();
 void ResetReader();
 void SetupBLE();
 void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
+
+size_t availableLines();
+size_t peekLine(char *buffer, size_t bufferSize);
+size_t readLine(char *buffer, size_t bufferSize);
+size_t print(const char *value);
+size_t println(const char *value);
+void onReceive(const uint8_t *data, size_t size);
+static void onBLEWritten(BLEDevice central, BLECharacteristic characteristic);
+void poll();
+void end();
+size_t available();
+int peek();
+int read();
+size_t write(uint8_t byte);
+void flush();
+
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------

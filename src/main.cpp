@@ -53,6 +53,12 @@ volatile bool _enableTimeouts = false;
 
 // when incremented to a specified value, publish the current battery level
 uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
+
+ByteRingBuffer<BLE_SERIAL_RECEIVE_BUFFER_SIZE> receiveBuffer;
+size_t numAvailableLines;
+unsigned long long lastFlushTime;
+size_t transmitBufferLength;
+uint8_t transmitBuffer[BLE_ATTRIBUTE_MAX_VALUE_LENGTH];
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -80,25 +86,39 @@ void SetupBLE()
    // configure the device information service
    AddDeviceServiceBLE();
 
+   // configure the NORDIC SEMICONDUCTORS SSP UART service and characteristics
+//#ifdef NORDIC_SPP_FUNCTIONALITY
+   AddNordicUartServiceBLE();
+//#endif
+
    // Bluetooth LE connection handlers.
    BLE.setEventHandler(BLEConnected, onBLEConnected);
    BLE.setEventHandler(BLEDisconnected, onBLEDisconnected);
 
    // Event driven reads.
    rxChar.setEventHandler(BLEWritten, onRxCharValueUpdate);
+   receiveCharacteristic.setEventHandler(BLEWritten, onBLEWritten);
 
    // Let's tell all local devices about us.
    BLE.advertise();
 
    // set the default characteristics
+   PublishHardwareDetails();
+
+   // register the current battery voltage
+   PublishBattery();
+}
+
+/// <summary>
+/// Publish the initial details of this device at POWER ON
+/// </summary>
+void PublishHardwareDetails()
+{
    manufacturerCharacteristic.writeValue(MANUFACTURER_NAME_STRING, false);
    modelNumberCharacteristic.writeValue(MODEL_NAME_STRING, false);
    hardwareCharacteristic.writeValue(HARDWARE_NAME_STRING, false);
    firmwareRevisionCharacteristic.writeValue(FIRMWARE_NAME_STRING, false);
    serialNumberCharacteristic.writeValue(SERIAL_NO_NAME_STRING, false);
-
-   // register the current battery voltage
-   PublishBattery();
 }
 
 /// <summary>
@@ -113,6 +133,17 @@ void AddDeviceServiceBLE()
    deviceInfoService.addCharacteristic(serialNumberCharacteristic);
    deviceInfoService.addCharacteristic(hardwareCharacteristic);
    BLE.addService(deviceInfoService);
+}
+
+/// <summary>
+/// Add the NORDIC SEMICONDUCTORS SSP UART service and characteristics
+/// </summary>
+void AddNordicUartServiceBLE()
+{
+   BLE.setAdvertisedService(uartService);
+   uartService.addCharacteristic(receiveCharacteristic);
+   uartService.addCharacteristic(transmitCharacteristic);
+   BLE.addService(uartService);
 }
 
 /// <summary>
@@ -208,7 +239,6 @@ void ProcessControlMessage(byte *message, int messageSize)
    uint8_t encodedSizeHigh = 0x00;
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
    uint16_t encodedSize = 0x0000;
-   uint16_t batteryVoltage = 0x0000;
 
    // process any received payload
    _command = GetCommandType(message);
@@ -480,7 +510,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 }
 #pragma endregion
 
-//------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 
 #pragma region APPLICATION CORE AND OS TIMER
 /// <summary>
@@ -1219,6 +1249,12 @@ void ResetReader()
    _readerBusy = false;
    _blockReader = false;
    _command = ReadCardContinuous;
+   
+   // reset the internal UART buffers
+   numAvailableLines = 0;
+   transmitBufferLength = 0;
+   lastFlushTime = 0;
+
    if (ndef_message->getRecordCount() > 0)
    {
       ndef_message->dropAllRecords();
@@ -1343,3 +1379,205 @@ void calculateCRC(bool inOut, byte new_char)
    }
 }
 #pragma endregion
+
+//-------------------------------------------------------------------------------------------------
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+void onReceive(const uint8_t *data, size_t size)
+{
+   for (size_t i = 0; i < min(size, sizeof(receiveBuffer)); i++)
+   {
+      receiveBuffer.add(data[i]);
+      if (data[i] == '\n')
+      {
+         numAvailableLines++;
+      }
+   }
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
+{
+   onReceive(characteristic.value(), characteristic.valueLength());
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+void poll()
+{
+   if (millis() - lastFlushTime > 100)
+   {
+      flush();
+   }
+   else
+   {
+      BLE.poll();
+   }
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+void end()
+{
+   receiveCharacteristic.setEventHandler(BLEWritten, NULL);
+   receiveBuffer.clear();
+   flush();
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t available()
+{
+   receiveBuffer.getLength();
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+int peek()
+{
+   if (receiveBuffer.getLength() == 0)
+      return -1;
+   return receiveBuffer.get(0);
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+int read()
+{
+   int result = receiveBuffer.pop();
+   if (result == (int)'\n')
+   {
+      numAvailableLines--;
+   }
+   return result;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t write(uint8_t byte)
+{
+   if (transmitCharacteristic.subscribed() == false)
+   {
+      return 0;
+   }
+   transmitBuffer[transmitBufferLength] = byte;
+   transmitBufferLength++;
+   if (transmitBufferLength == sizeof(transmitBuffer))
+   {
+      flush();
+   }
+   return 1;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+void flush()
+{
+   if (transmitBufferLength > 0)
+   {
+      transmitCharacteristic.setValue(transmitBuffer, transmitBufferLength);
+      transmitBufferLength = 0;
+   }
+   lastFlushTime = millis();
+   BLE.poll();
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t availableLines()
+{
+   return numAvailableLines;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t peekLine(char *buffer, size_t bufferSize)
+{
+   if (availableLines() == 0)
+   {
+      buffer[0] = '\0';
+      return 0;
+   }
+   size_t i = 0;
+   for (; i < bufferSize - 1; i++)
+   {
+      int chr = receiveBuffer.get(i);
+      if (chr == -1 || chr == '\n')
+      {
+         break;
+      }
+      else
+      {
+         buffer[i] = chr;
+      }
+   }
+   buffer[i] = '\0';
+   return i;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t readLine(char *buffer, size_t bufferSize)
+{
+   if (availableLines() == 0)
+   {
+      buffer[0] = '\0';
+      return 0;
+   }
+   size_t i = 0;
+   for (; i < bufferSize - 1; i++)
+   {
+      int chr = read();
+      if (chr == -1 || chr == '\n')
+      {
+         break;
+      }
+      else
+      {
+         buffer[i] = chr;
+      }
+   }
+   buffer[i] = '\0';
+   return i;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t print(const char *str)
+{
+   if (transmitCharacteristic.subscribed() == false)
+   {
+      return 0;
+   }
+   size_t written = 0;
+   for (size_t i = 0; str[i] != '\0'; i++)
+   {
+      written += write(str[i]);
+   }
+   return written;
+}
+
+/// <summary>
+/// Flashes the COMMS LED
+/// </summary>
+size_t println(const char *str)
+{
+   return print(str) + write('\n');
+}
+
+//-------------------------------------------------------------------------------------------------
