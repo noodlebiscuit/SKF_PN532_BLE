@@ -26,47 +26,47 @@
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE MEMBERS
-// MBED RTOS timer
+/// @brief MBED RTOS timer
 Ticker timer;
 volatile bool timerEvent = false;
 
-// current time (for TIMEOUT management)
+/// @brief  current time (for TIMEOUT management)
 unsigned long currentTime = 0;
 
-// what is the reader required to do?
+/// @brief  what is the reader required to do?
 PN532_command _command = ReadCardContinuous;
 
-// block access to the reader hardware?
+/// @brief  block access to the reader hardware?
 volatile bool _blockReader = false;
 
-// whwn set true, we need to block all other I/O activites
+/// @brief  when set true, we need to block all other I/O activites
 volatile bool _readerBusy = false;
 
-// references the UID from the TAG to block multiple reads
+/// @brief  references the UID from the TAG to block multiple reads
 uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-// create a new NDEF message
+/// @brief  create a new NDEF message
 NDEF_Message *ndef_message = new NDEF_Message();
 
-// enable TIMEOUTS (for WRITE or ONE SHOT)?
+/// @brief  enable TIMEOUTS (for WRITE or ONE SHOT)?
 volatile bool _enableTimeouts = false;
 
-// when incremented to a specified value, publish the current battery level
+/// @brief  when incremented to a specified value, publish the current battery level
 uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
 
-ByteRingBuffer<NORDIC_SPP_RX_BUFFER_LENGTH> receiveBuffer;
-size_t numAvailableLines;
-unsigned long long lastFlushTime;
-size_t transmitBufferLength;
-uint8_t transmitBuffer[NORDIC_SPP_TX_BUFFER_LENGTH];
+CyclicByteBuffer<NORDIC_SPP_RX_BUFFER_LENGTH> _receiveBufferSPP;
+size_t _numAvailableLinesSPP;
+unsigned long long _lastFlushTime;
+size_t _transmitBufferLengthSPP;
+uint8_t _transmitBufferSPP[NORDIC_SPP_TX_BUFFER_LENGTH];
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
-/// <summary>
-/// Configure the BLE hardware
-/// </summary>`
+///
+/// @brief Configure the BLE hardware
+///
 void SetupBLE()
 {
    // initiate BLE comms
@@ -109,9 +109,9 @@ void SetupBLE()
    PublishBattery();
 }
 
-/// <summary>
-/// Publish the initial details of this device at POWER ON
-/// </summary>
+///
+/// @brief Publish the initial details of this device at POWER ON
+///
 void PublishHardwareDetails()
 {
    manufacturerCharacteristic.writeValue(MANUFACTURER_NAME_STRING, false);
@@ -121,9 +121,9 @@ void PublishHardwareDetails()
    serialNumberCharacteristic.writeValue(SERIAL_NO_NAME_STRING, false);
 }
 
-/// <summary>
-/// Add the device information service and associate the required characteristics
-/// </summary>
+///
+/// @brief Add the device information service and associate the required characteristics
+///
 void AddDeviceServiceBLE()
 {
    BLE.setAdvertisedService(deviceInfoService);
@@ -135,9 +135,9 @@ void AddDeviceServiceBLE()
    BLE.addService(deviceInfoService);
 }
 
-/// <summary>
-/// Add the NORDIC SEMICONDUCTORS SSP UART service and characteristics
-/// </summary>
+///
+/// @brief Add the NORDIC SEMICONDUCTORS SSP UART service and characteristics
+///
 void AddNordicUartServiceBLE()
 {
    BLE.setAdvertisedService(uartService);
@@ -146,9 +146,9 @@ void AddNordicUartServiceBLE()
    BLE.addService(uartService);
 }
 
-/// <summary>
-/// Add the battery state service and associate the required characteristics
-/// </summary>
+///
+/// @brief Add the battery state service and associate the required characteristics
+///
 void AddBatteryServiceBLE()
 {
    BLE.setAdvertisedService(batteryService);
@@ -156,9 +156,9 @@ void AddBatteryServiceBLE()
    BLE.addService(batteryService);
 }
 
-/// <summary>
-/// Add the core data service and associate the required characteristics
-/// </summary>
+///
+/// @brief Add the core data service and associate the required characteristics
+///
 void AddDataServiceBLE()
 {
    BLE.setAdvertisedService(nearFieldService);
@@ -167,9 +167,9 @@ void AddDataServiceBLE()
    BLE.addService(nearFieldService);
 }
 
-/// <summary>
-/// Start the BLE service!
-/// </summary>
+///
+/// @brief Start the BLE service!
+///
 void StartBLE()
 {
    if (!BLE.begin())
@@ -182,30 +182,30 @@ void StartBLE()
    }
 }
 
-/// <summary>
-/// A BLE device has connected to our sensor - illuminate the connection LED
-/// </summary>
-/// <param name="central">BLE device</param>
+///
+/// @brief A BLE device has connected to our sensor - illuminate the connection LED
+/// @param cental BLE device
+///
 void onBLEConnected(BLEDevice central)
 {
    LED_SetConnectedToBLE = HIGH;
    ResetReader();
 }
 
-/// <summary>
-/// A BLE device has just disconnected from our sensor - power off the connection LED
-/// </summary>
-/// <param name="central">BLE device</param>
+///
+/// @brief A BLE device has just disconnected from our sensor - power off the connection LED
+/// @param central BLE device
+///
 void onBLEDisconnected(BLEDevice central)
 {
    LED_SetConnectedToBLE = LOW;
 }
 
-/// <summary>
-/// Process received data serial data
-/// </summary>
-/// <param name="central">BLE device</param>
-/// <param name="characteristic">BLE characteristic referenced</param>
+///
+/// @brief Process received data serial data
+/// @param central BLE device
+/// @param characteristic BLE characteristic referenced
+///
 void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
 {
    // read and cache the received BLE message
@@ -216,11 +216,11 @@ void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
    ProcessControlMessage(tmp, dataLength);
 }
 
-/// <summary>
-/// Process any received ProtoBuf message payload
-/// </summary>
-/// <param name="message">pointer to the received PB message byte array</param>
-/// <param name="messageSize">number of bytes in the PB message</param>
+///
+/// @brief Process any received ProtoBuf message payload
+/// @param message pointer to the received PB message byte array
+/// @param messageSize number of bytes in the PB message
+///
 void ProcessControlMessage(byte *message, int messageSize)
 {
 
@@ -411,12 +411,12 @@ void ProcessControlMessage(byte *message, int messageSize)
    FlashLED(COMMAND_LED_FLASH, 0);
 }
 
-/// <summary>
-/// Reads and returns an averaged value for the 3.7V Lithium ion battery in MV
-/// </summary>
-/// <param name="PIN">what analogue pin are we connecting to?</param>
-/// <param name="average">how many samples to read and average</param>
-/// <returns>measure voltage as a big-endian integer</returns>
+///
+/// @brief Reads and returns an averaged value for the 3.7V Lithium ion battery in MV
+/// @param PIN what analogue pin are we connecting to?
+/// @param average how many samples to read and average
+/// @return voltage as a big-endian integer
+///
 uint16_t ReadBattery(pin_size_t PIN, int average)
 {
    float value = 0.0;
@@ -429,11 +429,10 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
    return (uint16_t)(value);
 }
 
-/// <summary>
-/// Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
-/// </summary>
-/// <param name="pagedata">raw NDEF message payload</param>
-/// <param name="headerdata">NDEF meassage header with UUID</param>
+///
+/// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @param responsePayload raw NDEF message payload
+///
 void PublishResponseToBluetooth(uint8_t *responsePayload)
 {
    // make sure we don't have any NFC scanning overlaps here
@@ -447,11 +446,11 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
    _readerBusy = false;
 }
 
-/// <summary>
-/// Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
-/// </summary>
-/// <param name="pagedata">raw NDEF message payload</param>
-/// <param name="headerdata">NDEF meassage header with UUID</param>
+///
+/// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @param pagedata raw NDEF message payload
+/// @param headerdata NDEF meassage header with UUID
+///
 void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
    // reset the CRC
@@ -500,9 +499,9 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
 
    for (uint8_t i=0x00; i<0xff; ++i)
-   write(i);
-   write(0x0a);
-   flush();
+   WriteToSPP(i);
+   WriteToSPP(0x0a);
+   FlushSPP();
    //
    // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
    //
@@ -518,9 +517,9 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 //-------------------------------------------------------------------------------------------------
 
 #pragma region APPLICATION CORE AND OS TIMER
-/// <summary>
-/// Setup the ARDUINO
-/// </summary>
+///
+/// @brief Setup the ARDUINO
+///
 void setup(void)
 {
    // set the LED pin
@@ -552,9 +551,10 @@ void setup(void)
    SetupBLE();
 }
 
-/// <summary>
-/// APPLICATION SUPER LOOP
-/// </summary>
+///
+/// @brief APPLICATION SUPER LOOP
+/// @param void
+///
 void loop(void)
 {
    // top priority here is the BLE controller
@@ -575,9 +575,9 @@ void loop(void)
    }
 }
 
-/// <summary>
-/// MBED timer tick event *** APPLICATION CORE ***
-/// </summary>
+///
+/// @brief MBED timer tick event *** APPLICATION CORE ***
+///
 void AtTime()
 {
    timerEvent = true;
@@ -587,9 +587,9 @@ void AtTime()
 //------------------------------------------------------------------------------------------------
 
 #pragma region NEAR FIELD COMMUNICATIONS SUPPORT METHODS
-/// <summary>
-/// Publish the current battery voltage, if and when it's possible to do so
-/// </summary>
+///
+/// @brief Publish the current battery voltage, if and when it's possible to do so
+///
 void PublishBattery()
 {
    // if the reader is blocked, then bypass this method completely
@@ -613,9 +613,10 @@ void PublishBattery()
    }
 }
 
-/// <summary>
-/// Main entry point for PN532 scanning
-/// </summary>
+///
+/// @brief Main entry point for PN532 scanning
+/// @param void
+/// 
 void ConnectToReader(void)
 {
    // if the reader is blocked, then bypass this method completely
@@ -708,11 +709,12 @@ void ConnectToReader(void)
    }
 }
 
-/// <summary>
-/// Reads the card contents and returns over Bluetooth
-/// </summary>
-/// <param name="pagedata">returns the NDEF message payload</param>
-/// <param name="headerdata">returns the NDEF meassage header</param>
+/// 
+/// @brief Reads the card contents and returns over Bluetooth
+/// @param pagedata returns the NDEF message payload
+/// @param headerdata returns the NDEF meassage header
+/// @return number of bytes in the TAG UUID
+///
 uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
 {
    uint8_t uidLength = 0;
@@ -777,11 +779,12 @@ uint8_t Read_PN532(uint8_t *pagedata, uint8_t *headerdata)
    return uidLength;
 }
 
-/// <summary>
-/// Reads the cards CAPACITY CONTAINER (from Page #3) and returns the TAG type
-/// This page spans bytes 12, 13, 14 and 15, where 14 is the card type
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
+///
+/// @brief Reads the cards CAPACITY CONTAINER (from Page #3) and returns the TAG type 
+/// @brief this page spans bytes 12, 13, 14 and 15, where 14 is the card type
+/// @param headerdata reference to the read NDEF message header
+/// @return NTAG card version (i.e. NTAG-215)
+/// 
 NTAG GetCardType(uint8_t *headerdata)
 {
    if ((headerdata[12] == CC[0]) & (headerdata[13] == CC[1]) & (headerdata[15] == CC[3]))
@@ -802,10 +805,11 @@ NTAG GetCardType(uint8_t *headerdata)
    return UNKNOWN;
 }
 
-/// <summary>
-/// What is the maximum available memory for a specific card type
-/// </summary>
-/// <param name="headerdata">embedded card type (NTAG213, NTAG215, NTAG216)</param>
+///
+/// @brief What is the maximum available memory for a specific card type
+/// @param cardType embedded card type
+/// @return available bytes
+///
 uint16_t GetTotalCardMemory(NTAG cardType)
 {
    if (cardType == TYPE_213)
@@ -823,11 +827,11 @@ uint16_t GetTotalCardMemory(NTAG cardType)
    return NTAG_213_MEMORY;
 }
 
-/// <summary>
-/// Clear TAG contents or write complete NDEF message
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="pagedata">reference to the read NDEF message body</param>
+///
+/// @brief Executes a specific reader command
+/// @param headerdata reference to the read NDEF message header
+/// @param pagedata reference to the read NDEF message body
+///
 void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 {
    // is this an NTAG compatible card?
@@ -930,13 +934,13 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
    currentTime = millis() - (SYSTEM_TIMEOUT - COMMAND_TIMEOUT);
 }
 
-/// <summary>
-/// Appends a received NDEF BINARY record to an existing NDEF message
-/// Note: this differs from an NDEF TEXT record in that it allows invalid
-/// characters - specifically /ESC and 0x00
-/// </summary>
-/// <param name="message">pointer to the received command message byte array</param>
-/// <param name="messageSize">number of bytes in the command message</param>
+///
+/// @brief Appends a received NDEF BINARY record to an existing NDEF message
+/// @brief Note: this differs from an NDEF TEXT record in that it allows invalid
+/// @brief characters - specifically /ESC and 0x00
+/// @param message pointer to the received command message byte array
+/// @param messageSize number of bytes in the command message
+///
 void AddNdefRecordToMessage(byte *message, int messageSize)
 {
    //
@@ -986,13 +990,13 @@ void AddNdefRecordToMessage(byte *message, int messageSize)
    delete[] ndefRecord;
 }
 
-/// <summary>
-/// Appends a received NDEF TEXT record to an existing NDEF message
-/// Note: this differs from an NDEF BINARY record in that it blocks invalid
-/// characters such as /ESC and 0x00
-/// </summary>
-/// <param name="message">pointer to the received command message byte array</param>
-/// <param name="messageSize">number of bytes in the command message</param>
+///
+/// @brief Appends a received NDEF TEXT record to an existing NDEF message
+/// @brief Note: this differs from an NDEF BINARY record in that it blocks invalid
+/// @brief characters such as /ESC and 0x00
+/// @param message pointer to the received command message byte array
+/// @param messageSize number of bytes in the command message
+///
 void AddNdefTextRecordToMessage(byte *message, int messageSize)
 {
    // ensure the message size does not exceed the set limit
@@ -1025,11 +1029,12 @@ void AddNdefTextRecordToMessage(byte *message, int messageSize)
    delete[] ndefRecord;
 }
 
-/// <summary>
-/// Appends a received data to the current NDEF message
-/// </summary>
-/// <param name="message">pointer to the received command message byte array</param>
-/// <param name="messageSize">number of bytes in the command message</param>
+///
+/// @brief Appends a received data to the current NDEF message
+/// @param message pointer to the received command message byte array
+/// @param messageSize number of bytes in the command message
+/// @return TRUE on success
+///
 bool AppendToNdefRecordMessage(byte *message, int messageSize)
 {
    // get the current record (last active) record from the cache
@@ -1082,11 +1087,11 @@ bool AppendToNdefRecordMessage(byte *message, int messageSize)
    return true;
 }
 
-/// <summary>
-/// Clears and overwrites the complete contents of the NDEF message block
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="clearCard">clear card before write action</param>
+///
+/// @brief Clears and overwrites the complete contents of the NDEF message block
+/// @param headerdata reference to the read NDEF message header
+/// @param clearCard clear card before write action
+///
 void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 {
    // create the page buffer
@@ -1154,11 +1159,11 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
    ToggleLED(false);
 }
 
-/// <summary>
-/// Completely wipes an NTAG card of all contents
-/// </summary>
-/// <param name="headerdata">reference to the read NDEF message header</param>
-/// <param name="pagedata">reference to the read NDEF message payload</param>
+///
+/// @brief Completely wipes an NTAG card of all contents
+/// @param headerdata reference to the read NDEF message header
+/// @param pagedata reference to the read NDEF message payload
+///
 void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
 {
    // create the page buffer
@@ -1195,9 +1200,9 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
 //------------------------------------------------------------------------------------------------
 
 #pragma region PRIVATE SUPPORT METHODS
-/// <summary>
-/// Prints the cache for the current NDEF record
-/// </summary>
+///
+/// @brief Prints the cache for the current NDEF record
+///
 void DebugPrintCache()
 {
    NDEF_Record debugRecord = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
@@ -1215,11 +1220,11 @@ void DebugPrintCache()
    delete[] debugNdefRecord;
 }
 
-/// <summary>
-/// Publish the current page number being written
-/// </summary>
-/// <param name="pageLow">low byte value</param>
-/// <param name="pageHigh">high byte value</param>
+///
+/// @brief Publish the current page number being written
+/// @param pageLow low byte value
+/// @param pageHigh high byte value
+///
 void PublishWriteFeedback(byte pageLow, byte pageHigh)
 {
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
@@ -1231,10 +1236,11 @@ void PublishWriteFeedback(byte pageLow, byte pageHigh)
    delete[] responsePayload;
 }
 
-/// <summary>
-/// How many pages are required to cover all message bytes?
-/// </summary>
-/// <param name="byteCount">number of message bytes</param>
+///
+/// @brief How many pages are required to cover all message bytes?
+/// @param byteCount number of message bytes
+/// @return number of bytes counted
+///
 int GetPageCount(int byteCount)
 {
    int pages = byteCount / BYTES_PER_BLOCK;
@@ -1246,9 +1252,9 @@ int GetPageCount(int byteCount)
    return pages;
 }
 
-/// <summary>
-/// Reset the reader after RTOS timeout and erase the NDEF message cache
-/// </summary>
+///
+/// @brief Reset the reader after RTOS timeout and erase the NDEF message cache
+///
 void ResetReader()
 {
    _readerBusy = false;
@@ -1256,9 +1262,12 @@ void ResetReader()
    _command = ReadCardContinuous;
    
    // reset the internal UART buffers
-   numAvailableLines = 0;
-   transmitBufferLength = 0;
-   lastFlushTime = 0;
+   _numAvailableLinesSPP = 0;
+   _transmitBufferLengthSPP = 0;
+   _lastFlushTime = 0;
+   _receiveBufferSPP.clear();
+
+   FlushSPP();
 
    if (ndef_message->getRecordCount() > 0)
    {
@@ -1266,18 +1275,20 @@ void ResetReader()
    }
 }
 
-/// <summary>
-/// How many NDEF records are currently stored in the hardware cache?
-/// </summary>
+///
+/// @brief How many NDEF records are currently stored in the hardware cache?
+/// @param cachedRecordCount referenced return value
+///
 void GetCachedRecordCount(uint8_t &cachedRecordCount)
 {
    cachedRecordCount = (uint8_t)ndef_message->getRecordCount();
 }
 
-/// <summary>
-/// Get the received command type
-/// </summary>
-/// <param name="buffer">byte array to search against</param>
+///
+/// @brief Get the received command type
+/// @param buffer byte array to search against
+/// @return reader command type (PN532_command)
+///
 PN532_command GetCommandType(uint8_t *buffer)
 {
    if (memcmp(buffer, CONTINUOUS_READ_CARD, 2) == 0)
@@ -1326,10 +1337,10 @@ PN532_command GetCommandType(uint8_t *buffer)
    }
 }
 
-/// <summary>
-/// Toggle the LED ON or OFF every time this method is called
-/// </summary>
-/// <param name="period">true for toggle else false for LED OFF</param>
+///
+/// @brief Toggle the LED ON or OFF every time this method is called
+/// @param enableToggle when true, wwitch LED ON and then OFF
+///
 void ToggleLED(bool enableToggle)
 {
    // if we're forcing the LED to be OFF, then do so here
@@ -1352,10 +1363,11 @@ void ToggleLED(bool enableToggle)
    }
 }
 
-/// <summary>
-/// Flashes the COMMS LED
-/// </summary>
-/// <param name="period">milliseconds to illuminate for</param>
+///
+/// @brief Flashes the COMMS LED
+/// @param onPeriod milliseconds to illuminate for
+/// @param offPeriod milliseconds for LED to be OFF
+///
 void FlashLED(int onPeriod, int offPeriod)
 {
    digitalWrite(COMMS_LED, HIGH);
@@ -1364,14 +1376,14 @@ void FlashLED(int onPeriod, int offPeriod)
    delay(offPeriod);
 }
 
-/// <summary>
-/// This simple method references a specific byte against a return value
-/// in a CRC lookup table. There are two CRC types, one for outgoing and
-/// another for incoming binary data. The two values CRC_in and CRC_out
-/// are local to this class.
-/// </summary>
-/// <param name="inOut">true if data is outbound to control</param>
-/// <param name="newChar">Byte to lookup</param>
+///
+/// @brief This simple method references a specific byte against a return value
+/// @brief in a CRC lookup table. There are two CRC types, one for outgoing and
+/// @brief another for incoming binary data. The two values CRC_in and CRC_out
+/// @brief are local to this class.
+/// @param inOut true if data is outbound to control
+/// @param new_char byte to lookup
+///
 void calculateCRC(bool inOut, byte new_char)
 {
    if (inOut == OUT) // If out-going CRC is calculated
@@ -1388,16 +1400,16 @@ void calculateCRC(bool inOut, byte new_char)
 //-------------------------------------------------------------------------------------------------
 
 /// <summary>
-/// Flashes the COMMS LED
+/// Event raised on data being received on the NORDIC SPP UART
 /// </summary>
 void onReceive(const uint8_t *data, size_t size)
 {
-   for (size_t i = 0; i < min(size, sizeof(receiveBuffer)); i++)
+   for (size_t i = 0; i < min(size, sizeof(_receiveBufferSPP)); i++)
    {
-      receiveBuffer.add(data[i]);
+      _receiveBufferSPP.add(data[i]);
       if (data[i] == '\n')
       {
-         numAvailableLines++;
+         _numAvailableLinesSPP++;
       }
    }
 }
@@ -1411,13 +1423,13 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// Check to see if new data is waiting in the SPP receive buffer
 /// </summary>
-void poll()
+void PollSPP()
 {
-   if (millis() - lastFlushTime > 100)
+   if (millis() - _lastFlushTime > 100)
    {
-      flush();
+      FlushSPP();
    }
    else
    {
@@ -1426,60 +1438,60 @@ void poll()
 }
 
 /// <summary>
-/// 
+/// Release event handler
 /// </summary>
-void end()
+void EndSPP()
 {
    receiveCharacteristic.setEventHandler(BLEWritten, NULL);
-   receiveBuffer.clear();
-   flush();
+   _receiveBufferSPP.clear();
+   FlushSPP();
 }
 
 /// <summary>
-/// 
+/// How many bytes are available for use by the NORDIC SPP receiver?
 /// </summary>
-size_t available()
+size_t AvailableSPP()
 {
-   receiveBuffer.getLength();
+   _receiveBufferSPP.getLength();
 }
 
 /// <summary>
-/// 
+/// How many bytes are available in the NORDIC SPP receive buffer?
 /// </summary>
-int peek()
+int PeekSPP()
 {
-   if (receiveBuffer.getLength() == 0)
+   if (_receiveBufferSPP.getLength() == 0)
       return -1;
-   return receiveBuffer.get(0);
+   return _receiveBufferSPP.get(0);
 }
 
 /// <summary>
 /// 
 /// </summary>
-int read()
+int ReadSPP()
 {
-   int result = receiveBuffer.pop();
+   int result = _receiveBufferSPP.pop();
    if (result == (int)'\n')
    {
-      numAvailableLines--;
+      _numAvailableLinesSPP--;
    }
    return result;
 }
 
 /// <summary>
-/// 
+/// Write a single byte to the NORDIC UART SPP
 /// </summary>
-size_t write(uint8_t byte)
+size_t WriteToSPP(uint8_t byte)
 {
    if (transmitCharacteristic.subscribed() == false)
    {
       return 0;
    }
-   transmitBuffer[transmitBufferLength] = byte;
-   transmitBufferLength++;
-   if (transmitBufferLength == sizeof(transmitBuffer))
+   _transmitBufferSPP[_transmitBufferLengthSPP] = byte;
+   _transmitBufferLengthSPP++;
+   if (_transmitBufferLengthSPP == sizeof(_transmitBufferSPP))
    {
-      flush();
+      FlushSPP();
    }
    return 1;
 }
@@ -1487,31 +1499,31 @@ size_t write(uint8_t byte)
 /// <summary>
 /// 
 /// </summary>
-void flush()
+void FlushSPP()
 {
-   if (transmitBufferLength > 0)
+   if (_transmitBufferLengthSPP > 0)
    {
-      transmitCharacteristic.setValue(transmitBuffer, transmitBufferLength);
-      transmitBufferLength = 0;
+      transmitCharacteristic.setValue(_transmitBufferSPP, _transmitBufferLengthSPP);
+      _transmitBufferLengthSPP = 0;
    }
-   lastFlushTime = millis();
+   _lastFlushTime = millis();
    BLE.poll();
 }
 
 /// <summary>
 /// 
 /// </summary>
-size_t availableLines()
+size_t AvailableLinesSPP()
 {
-   return numAvailableLines;
+   return _numAvailableLinesSPP;
 }
 
 /// <summary>
 /// 
 /// </summary>
-size_t peekLine(char *buffer, size_t bufferSize)
+size_t PeekLineSPP(char *buffer, size_t bufferSize)
 {
-   if (availableLines() == 0)
+   if (AvailableLinesSPP() == 0)
    {
       buffer[0] = '\0';
       return 0;
@@ -1519,7 +1531,7 @@ size_t peekLine(char *buffer, size_t bufferSize)
    size_t i = 0;
    for (; i < bufferSize - 1; i++)
    {
-      int chr = receiveBuffer.get(i);
+      int chr = _receiveBufferSPP.get(i);
       if (chr == -1 || chr == '\n')
       {
          break;
@@ -1536,9 +1548,9 @@ size_t peekLine(char *buffer, size_t bufferSize)
 /// <summary>
 /// 
 /// </summary>
-size_t readLine(char *buffer, size_t bufferSize)
+size_t ReadLineSPP(char *buffer, size_t bufferSize)
 {
-   if (availableLines() == 0)
+   if (AvailableLinesSPP() == 0)
    {
       buffer[0] = '\0';
       return 0;
@@ -1546,7 +1558,7 @@ size_t readLine(char *buffer, size_t bufferSize)
    size_t i = 0;
    for (; i < bufferSize - 1; i++)
    {
-      int chr = read();
+      int chr = ReadSPP();
       if (chr == -1 || chr == '\n')
       {
          break;
@@ -1563,7 +1575,7 @@ size_t readLine(char *buffer, size_t bufferSize)
 /// <summary>
 /// 
 /// </summary>
-size_t print(const uint8_t *str)
+size_t PrintSPP(const uint8_t *str)
 {
    if (transmitCharacteristic.subscribed() == false)
    {
@@ -1572,7 +1584,7 @@ size_t print(const uint8_t *str)
    size_t written = 0;
    for (size_t i = 0; str[i] != '\0'; i++)
    {
-      written += write(str[i]);
+      written += WriteToSPP(str[i]);
    }
    return written;
 }
@@ -1580,9 +1592,9 @@ size_t print(const uint8_t *str)
 /// <summary>
 /// 
 /// </summary>
-size_t println(const uint8_t *str)
+size_t PrintlnSPP(const uint8_t *str)
 {
-   return print(str) + write('\n');
+   return PrintSPP(str) + WriteToSPP('\n');
 }
 
 //-------------------------------------------------------------------------------------------------

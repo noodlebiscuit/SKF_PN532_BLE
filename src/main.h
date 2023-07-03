@@ -7,6 +7,7 @@
 #include <vector>
 #include "PN532/Adafruit_PN532.h"
 #include "NDEF/NDEF_Message.h"
+#include "Common/CyclicByteBuffer.h"
 
 #pragma once
 #include <stdint.h>
@@ -89,52 +90,6 @@ BLECharacteristic transmitCharacteristic(UUID_CHARACTERISTIC_SPP_TX, BLERead | B
 
 //------------------------------------------------------------------------------------------------
 
-#pragma region NORDIC SERIAL PORT EMULATION
-
-template <size_t N>
-class ByteRingBuffer
-{
-private:
-    uint8_t ringBuffer[N];
-    size_t newestIndex = 0;
-    size_t length = 0;
-
-public:
-    void add(uint8_t value)
-    {
-        ringBuffer[newestIndex] = value;
-        newestIndex = (newestIndex + 1) % N;
-        length = min(length + 1, N);
-    }
-    int pop()
-    { // pops the oldest value off the ring buffer
-        if (length == 0)
-        {
-            return -1;
-        }
-        uint8_t result = ringBuffer[(N + newestIndex - length) % N];
-        length -= 1;
-        return result;
-    }
-    void clear()
-    {
-        newestIndex = 0;
-        length = 0;
-    }
-    int get(size_t index)
-    { // this.get(0) is the oldest value, this.get(this.getLength() - 1) is the newest value
-        if (index < 0 || index >= length)
-        {
-            return -1;
-        }
-        return ringBuffer[(N + newestIndex - length + index) % N];
-    }
-    size_t getLength() { return length; }
-};
-#pragma endregion
-
-//------------------------------------------------------------------------------------------------
-
 #define UID_LENGTH 7               // byte size of NTAG UID
 #define BLOCK_SIZE 16              // block size in bytes
 #define BLOCK_COUNT 16             // number of blocks to read from the card
@@ -206,7 +161,7 @@ public:
 
 //------------------------------------------------------------------------------------------------
 
-// configure and initialise the NFC reader (we use configurable I/O for this)
+/// @brief configure and initialise the NFC reader (we use configurable I/O for this)
 Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
 
 //------------------------------------------------------------------------------------------------
@@ -223,37 +178,38 @@ uint8_t CC[4] = {0xe1, 0x10, 0x12, 0x00};
 //
 // List of supported OPCODES:
 //
-// > continuous read and return of detected card contents
+
+/// @brief > continuous read and return of detected card contents
 uint8_t CONTINUOUS_READ_CARD[OPCODE_BYTES] = {0x00, 0x00};
 
-// > on receipt of this command, read once and return detected card contents
+/// @brief > on receipt of this command, read once and return detected card contents
 uint8_t SINGLE_READ_CARD[OPCODE_BYTES] = {0x00, 0x01};
 
-// > add a single NDEF record to the reader's cache memory
+/// @brief > add a single NDEF record to the reader's cache memory
 uint8_t ADD_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x02};
 
-// > add a single NDEF record to the reader's cache memory
+/// @brief > add a single NDEF record to the reader's cache memory
 uint8_t APPEND_NDEF_RECORD[OPCODE_BYTES] = {0x00, 0x03};
 
-// > how many NDEF records are in the device's cache memory
+/// @brief > how many NDEF records are in the device's cache memory
 uint8_t COUNT_NDEF_RECORDS[OPCODE_BYTES] = {0x00, 0x04};
 
-// > manually clear reader's internal NDEF cache memory
+/// @brief > manually clear reader's internal NDEF cache memory
 uint8_t CLEAR_NDEF_CACHE[OPCODE_BYTES] = {0x00, 0x05};
 
-// > brute-force publish all cached NDEF records to the detected card
+/// @brief > brute-force publish all cached NDEF records to the detected card
 uint8_t PUBLISH_TO_CARD[OPCODE_BYTES] = {0x00, 0x06};
 
-// > erase all NDEF records from a detected card
+/// @brief > erase all NDEF records from a detected card
 uint8_t ERASE_CARD_CONTENTS[OPCODE_BYTES] = {0x00, 0x07};
 
-// > what is the total number of bytes in the NDEF cache?
+/// @brief > what is the total number of bytes in the NDEF cache?
 uint8_t GET_ENCODED_SIZE[OPCODE_BYTES] = {0x00, 0x08};
 
-// > the previous payload was received without errors
+/// @brief > the previous payload was received without errors
 uint8_t LAST_PAYLOAD_RECEIVED[OPCODE_BYTES] = {0x00, 0x09};
 
-// > the previous payload failed and needs to be resent
+/// @brief > the previous payload failed and needs to be resent
 uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 
 //------------------------------------------------------------------------------------------------
@@ -269,16 +225,16 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 // > end of successfully transmitted payload
 uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
 
-// > error in attempting to publish to card (out of memory)
+/// @brief  > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
 
-// > error in attempting to publish to card (card could not be found)
+/// @brief  > error in attempting to publish to card (card could not be found)
 uint8_t WRITE_ERROR_DISCONNECT[4] = {0x02, 0x01, 0x0d, 0x0a};
 
-// > error in attempting to publish to card (out of memory)
+/// @brief  > error in attempting to publish to card (out of memory)
 uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
 
-// > error in attempting to read NDEF data from an empty card
+/// @brief  > error in attempting to read NDEF data from an empty card
 uint8_t CARD_ERROR_EMPTY[4] = {0x04, 0x01, 0x0d, 0x0a};
 
 //------------------------------------------------------------------------------------------------
@@ -289,7 +245,7 @@ uint8_t INVALID_UID = 0xff;
 
 //------------------------------------------------------------------------------------------------
 
-// CRC Lookups
+/// @brief  CRC Lookups
 const unsigned char CRC_TABLE[256] = {
     0, 94, 188, 226, 97, 63, 221, 131, 194, 156, 126, 32, 163, 253, 31, 65,
     157, 195, 33, 127, 252, 162, 64, 30, 95, 1, 227, 189, 62, 96, 130, 220,
@@ -317,9 +273,9 @@ uint8_t CRC_in;
 
 //------------------------------------------------------------------------------------------------
 
-/// <summary>
-/// Describes each of the commands that this reader supports
-/// </summary>
+///
+/// @brief  Describes each of the commands that this reader supports
+///
 enum PN532_command : uint8_t
 {
     ReadCardContinuous,
@@ -335,9 +291,9 @@ enum PN532_command : uint8_t
     ResendFailedPayload
 };
 
-/// <summary>
-/// Supported NTAG formats
-/// </summary>
+///
+/// @brief  Supported NTAG formats
+/// 
 enum NTAG : uint8_t
 {
     UNKNOWN,
@@ -348,65 +304,63 @@ enum NTAG : uint8_t
 
 //------------------------------------------------------------------------------------------------
 
-/// <summary>
-/// MBED* control the BLE connected pin
-/// </summary>
+///
+/// @brief  MBED* control the BLE connected pin
+///
 DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
-void AddBatteryServiceBLE();
-void AddDataServiceBLE();
-void AddDeviceServiceBLE();
-void AddNordicUartServiceBLE();
 bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
+int PeekSPP();
+int ReadSPP();
 NTAG GetCardType(uint8_t *);
 PN532_command GetCommandType(uint8_t *);
+size_t AvailableLinesSPP();
+size_t AvailableSPP();
+size_t PeekLineSPP(char *buffer, size_t bufferSize);
+size_t PrintlnSPP(const uint8_t *value);
+size_t PrintSPP(const uint8_t *value);
+size_t ReadLineSPP(char *buffer, size_t bufferSize);
+size_t WriteToSPP(uint8_t byte);
+static void onBLEWritten(BLEDevice central, BLECharacteristic characteristic);
 uint16_t GetTotalCardMemory(NTAG);
 uint16_t ReadBattery(pin_size_t, int);
 uint8_t Read_PN532(uint8_t *, uint8_t *);
+void AddBatteryServiceBLE();
+void AddDataServiceBLE();
+void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
+void AddNordicUartServiceBLE();
 void AtTime(void);
 void calculateCRC(bool, byte);
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();
+void EndSPP();
 void ExecuteReaderCommands(uint8_t *, uint8_t *);
 void FlashLED(int, int);
+void FlushSPP();
 void GetCachedRecordCount(uint8_t &);
 void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
+void onReceive(const uint8_t *data, size_t size);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
+void PollSPP();
 void ProcessControlMessage(byte *, int);
 void PublishBattery();
+void PublishHardwareDetails();
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(uint8_t *);
 void PublishWriteFeedback(byte, byte);
-void PublishHardwareDetails();
 void ResetReader();
 void SetupBLE();
 void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
-
-size_t availableLines();
-size_t peekLine(char *buffer, size_t bufferSize);
-size_t readLine(char *buffer, size_t bufferSize);
-size_t print(const uint8_t *value);
-size_t println(const uint8_t *value);
-void onReceive(const uint8_t *data, size_t size);
-static void onBLEWritten(BLEDevice central, BLECharacteristic characteristic);
-void poll();
-void end();
-size_t available();
-int peek();
-int read();
-size_t write(uint8_t byte);
-void flush();
-
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
