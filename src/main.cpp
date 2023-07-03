@@ -54,11 +54,11 @@ volatile bool _enableTimeouts = false;
 // when incremented to a specified value, publish the current battery level
 uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
 
-ByteRingBuffer<BLE_SERIAL_RECEIVE_BUFFER_SIZE> receiveBuffer;
+ByteRingBuffer<NORDIC_SPP_RX_BUFFER_LENGTH> receiveBuffer;
 size_t numAvailableLines;
 unsigned long long lastFlushTime;
 size_t transmitBufferLength;
-uint8_t transmitBuffer[BLE_ATTRIBUTE_MAX_VALUE_LENGTH];
+uint8_t transmitBuffer[NORDIC_SPP_TX_BUFFER_LENGTH];
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -498,6 +498,11 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       calculateCRC(OUT, pagedata[i]);
    }
 
+
+   for (uint8_t i=0x00; i<0xff; ++i)
+   write(i);
+   write(0x0a);
+   flush();
    //
    // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
    //
@@ -1421,7 +1426,7 @@ void poll()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 void end()
 {
@@ -1431,7 +1436,7 @@ void end()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 size_t available()
 {
@@ -1439,7 +1444,7 @@ size_t available()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 int peek()
 {
@@ -1449,7 +1454,7 @@ int peek()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 int read()
 {
@@ -1462,7 +1467,7 @@ int read()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 size_t write(uint8_t byte)
 {
@@ -1480,7 +1485,7 @@ size_t write(uint8_t byte)
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 void flush()
 {
@@ -1494,7 +1499,7 @@ void flush()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 size_t availableLines()
 {
@@ -1502,7 +1507,7 @@ size_t availableLines()
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 size_t peekLine(char *buffer, size_t bufferSize)
 {
@@ -1529,7 +1534,7 @@ size_t peekLine(char *buffer, size_t bufferSize)
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
 size_t readLine(char *buffer, size_t bufferSize)
 {
@@ -1556,9 +1561,9 @@ size_t readLine(char *buffer, size_t bufferSize)
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
-size_t print(const char *str)
+size_t print(const uint8_t *str)
 {
    if (transmitCharacteristic.subscribed() == false)
    {
@@ -1573,9 +1578,9 @@ size_t print(const char *str)
 }
 
 /// <summary>
-/// Flashes the COMMS LED
+/// 
 /// </summary>
-size_t println(const char *str)
+size_t println(const uint8_t *str)
 {
    return print(str) + write('\n');
 }
