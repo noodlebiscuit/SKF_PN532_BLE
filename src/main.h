@@ -21,22 +21,19 @@ using namespace std::chrono;
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 // BLE service descriptors
-#define UUID_SERVICE_READER "0000181a-0000-1000-8000-00805f9b34fb"             // environmental sensing
+#define UUID_SERVICE_NORDIC_SPP "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"         // UUID for NORDIC SPP UART
 #define UUID_SERVICE_BATTERY "0000180F-0000-1000-8000-00805F9B34Fb"            // UUID for the battery service
 #define UUID_SERVICE_DEVICE_INFORMATION "0000180A-0000-1000-8000-00805F9B34Fb" // UUID for the battery service
-#define UUID_SERVICE_NORDIC_SPP "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"           // UUID for NORDIC SPP UART
 
 // BLE service characteristics
-#define UUID_CHARACTERISTIC_TX "0000290c-0000-1000-8000-00805f9b34fb"           // measurement data
-#define UUID_CHARACTERISTIC_RX "0000290b-0000-1000-8000-00805f9b34fb"           // configuration data (JSON)
+#define UUID_CHARACTERISTIC_SPP_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SPP UART receive data
+#define UUID_CHARACTERISTIC_SPP_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SSP UART transmit data
 #define UUID_CHARACTERISTIC_BATTERY "00002A19-0000-1000-8000-00805f9b34fb"      // battery level characteristic
 #define UUID_CHARACTERISTIC_MODEL "00002A24-0000-1000-8000-00805f9b34fb"        // model number characteristic
 #define UUID_CHARACTERISTIC_SERIAL "00002A25-0000-1000-8000-00805f9b34fb"       // serial number characteristic
 #define UUID_CHARACTERISTIC_FIRMWARE "00002A26-0000-1000-8000-00805f9b34fb"     // firmware revision characteristic
 #define UUID_CHARACTERISTIC_HARDWARE "00002A27-0000-1000-8000-00805f9b34fb"     // hardware revision characteristic
 #define UUID_CHARACTERISTIC_MANUFACTURER "00002A29-0000-1000-8000-00805f9b34fb" // manufacturers name for device information service
-#define UUID_CHARACTERISTIC_SPP_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SPP UART receive data
-#define UUID_CHARACTERISTIC_SPP_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SSP UART transmit data
 
 // device characteristics
 #define LOCAL_NAME_OF_PERIPHERAL "NFC Reader"
@@ -44,8 +41,8 @@ using namespace std::chrono;
 #define MANUFACTURER_NAME_STRING "SKF (U.K.) Limited"
 #define MODEL_NAME_STRING "EXTERNAL-NFC-READER"
 #define HARDWARE_NAME_STRING "PROTOTYPE 2"
-#define FIRMWARE_NAME_STRING "0.4.06 DEV"
-#define SERIAL_NO_NAME_STRING "PT-01"
+#define FIRMWARE_NAME_STRING "20230703-2202"
+#define SERIAL_NO_NAME_STRING "PT-01-DEV"
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
 const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
@@ -58,22 +55,19 @@ const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
 #define TX_BUFFER_SIZE 32
 #define TX_BUFFER_FIXED_LENGTH false
 
-// setup for NORDIC SPP/UART functionality
-#define NORDIC_SPP_TX_BUFFER_LENGTH 20
-#define NORDIC_SPP_RX_BUFFER_LENGTH 512
+#define BLE_ATTRIBUTE_MAX_VALUE_LENGTH 512
 
 // Buffer to read samples into, each sample is 16-bits
 uint8_t configBuffer[RX_BUFFER_SIZE];
 
 // add each of the core services
-BLEService nearFieldService(UUID_SERVICE_READER);
+BLEService nearFieldService(UUID_SERVICE_NORDIC_SPP);
 BLEService deviceInfoService(UUID_SERVICE_DEVICE_INFORMATION);
 BLEService batteryService(UUID_SERVICE_BATTERY);
-BLEService uartService(UUID_SERVICE_NORDIC_SPP);
 
 // RX / TX Characteristics for BYTE ARRAYS
-BLECharacteristic rxChar(UUID_CHARACTERISTIC_RX, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
-BLECharacteristic txChar(UUID_CHARACTERISTIC_TX, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
+BLECharacteristic rxChar(UUID_CHARACTERISTIC_SPP_RX, BLEWriteWithoutResponse | BLEWrite, RX_BUFFER_SIZE, RX_BUFFER_FIXED_LENGTH);
+BLECharacteristic txChar(UUID_CHARACTERISTIC_SPP_TX, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 
 // battery characteristics
 BLECharacteristic batteryCharacteristic(UUID_CHARACTERISTIC_BATTERY, BLERead | BLENotify, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
@@ -84,8 +78,6 @@ BLECharacteristic firmwareRevisionCharacteristic(UUID_CHARACTERISTIC_FIRMWARE, B
 BLECharacteristic modelNumberCharacteristic(UUID_CHARACTERISTIC_MODEL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 BLECharacteristic hardwareCharacteristic(UUID_CHARACTERISTIC_HARDWARE, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
 BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead, TX_BUFFER_SIZE, TX_BUFFER_FIXED_LENGTH);
-BLECharacteristic receiveCharacteristic(UUID_CHARACTERISTIC_SPP_RX, BLEWriteWithoutResponse | BLEWrite, NORDIC_SPP_TX_BUFFER_LENGTH);
-BLECharacteristic transmitCharacteristic(UUID_CHARACTERISTIC_SPP_TX, BLERead | BLENotify, NORDIC_SPP_TX_BUFFER_LENGTH);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -293,7 +285,7 @@ enum PN532_command : uint8_t
 
 ///
 /// @brief  Supported NTAG formats
-/// 
+///
 enum NTAG : uint8_t
 {
     UNKNOWN,
@@ -321,9 +313,9 @@ PN532_command GetCommandType(uint8_t *);
 size_t AvailableLinesSPP();
 size_t AvailableSPP();
 size_t PeekLineSPP(char *buffer, size_t);
-size_t PrintlnSPP(const char*);
-size_t PrintSPP(const char*);
-size_t ReadLineSPP(char*, size_t);
+size_t PrintlnSPP(const char *);
+size_t PrintSPP(const char *);
+size_t ReadLineSPP(char *, size_t);
 size_t WriteToSPP(uint8_t);
 static void onBLEWritten(BLEDevice, BLECharacteristic);
 uint16_t GetTotalCardMemory(NTAG);
