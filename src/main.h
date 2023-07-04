@@ -7,7 +7,8 @@
 #include <vector>
 #include "PN532/Adafruit_PN532.h"
 #include "NDEF/NDEF_Message.h"
-#include "Common/CyclicByteBuffer.h"
+#include "CRC32/CyclicByteBuffer.h"
+#include "CRC32/CRC32.h"
 
 #pragma once
 #include <stdint.h>
@@ -215,7 +216,7 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 //      [ 01 ] - value between 0x00 and 0xff (default is 0x00)
 //
 // > end of successfully transmitted payload
-uint8_t EOR[4] = {0x00, 0x00, 0x0d, 0x0a};
+uint8_t EOR[6] = {0x00, 0x00, 0x00, 0x00, 0x0d, 0x0a};
 
 /// @brief  > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};

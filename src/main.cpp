@@ -92,7 +92,7 @@ void SetupBLE()
 
    // Event driven reads.
    rxChar.setEventHandler(BLEWritten, onRxCharValueUpdate);
-   //rxChar.setEventHandler(BLEWritten, onBLEWritten);
+   // rxChar.setEventHandler(BLEWritten, onBLEWritten);
 
    // Let's tell all local devices about us.
    BLE.advertise();
@@ -430,6 +430,8 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
    _readerBusy = false;
 }
 
+CRC32 crc;
+
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
 /// @param pagedata raw NDEF message payload
@@ -446,7 +448,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // generate the CRC for the header block
    for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
    {
-      calculateCRC(OUT, headerdata[i]);
+      crc.update(headerdata[i]);
    }
 
    // write the header block
@@ -454,6 +456,21 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
    // what is the total message size in bytes?
    int message_length = pagedata[1] + 3;
+
+   for (int i = 0; i < BLOCK_SIZE_BLE; i++)
+   {
+      READER_DEBUGPRINT.print(headerdata[i]);
+      READER_DEBUGPRINT.print(' ');
+   }
+   READER_DEBUGPRINT.println(' ');
+
+   for (int i = 0; i < message_length; i++)
+   {
+      READER_DEBUGPRINT.print(pagedata[i]);
+      READER_DEBUGPRINT.print(' ');
+   }
+   READER_DEBUGPRINT.println(' ');
+
 
    // reset the page index
    int index = 0;
@@ -465,13 +482,11 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       if (message_length >= BLOCK_SIZE_BLE)
       {
          txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
-         // transmitCharacteristic.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
          index++;
       }
       else
       {
-         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length + 1);
-         // transmitCharacteristic.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length + 1);
+         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length);
       }
       message_length -= BLOCK_SIZE_BLE;
    }
@@ -480,16 +495,28 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    message_length = pagedata[1] + 3;
    for (int i = 0; i < message_length; ++i)
    {
-      calculateCRC(OUT, pagedata[i]);
+      crc.update(pagedata[i]);
    }
 
    //
    // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
    //
    delayMicroseconds(BLOCK_WAIT_BLE);
-   EOR[1] = CRC_out;
-   txChar.writeValue(EOR, 4);
-   // transmitCharacteristic.writeValue(EOR, 4);
+
+   //
+   // publish the final CRC as an array of bytes
+   //
+   crc.finalizeAsArray(EOR);
+   txChar.writeValue(EOR, 6);
+   crc.reset();
+
+   // DEBUG PRINT THE CRC
+   for (int i = 0; i < 6; i++)
+   {
+      READER_DEBUGPRINT.print(EOR[i]);
+      READER_DEBUGPRINT.print(' ');
+   }
+   READER_DEBUGPRINT.println(' ');
 
    // release the blocker
    _readerBusy = false;
