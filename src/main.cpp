@@ -439,9 +439,6 @@ CRC32 crc;
 ///
 void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
-   // reset the CRC
-   CRC_out = 0xe4;
-
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
 
@@ -454,6 +451,11 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // add the byte count to the header and publish
    HEADER[3] = (uint8_t)((totalBytes & 0xff00) >> 8);
    HEADER[4] = (uint8_t)(totalBytes & 0x00ff);
+
+   // set the payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
+
    txChar.writeValue(HEADER, HEADER_BYTES);
 
    // generate the CRC for the payload header block
@@ -471,32 +473,35 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // write the header block
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
 
+   // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+   char sComP_header[] = "0000R#";
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
+   insert_substring(sComP_header, payloadLength, 6);
+   READER_DEBUGPRINT.println(sComP_header);
 
+   // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-   for (int i = 0; i < HEADER_BYTES; i++)
-   {
-      READER_DEBUGPRINT.print(HEADER[i]);
-      READER_DEBUGPRINT.print(' ');
-   }
-   READER_DEBUGPRINT.println(' ');
+   // for (int i = 0; i < HEADER_BYTES; i++)
+   // {
+   //    READER_DEBUGPRINT.print(HEADER[i]);
+   //    READER_DEBUGPRINT.print(' ');
+   // }
+   // READER_DEBUGPRINT.println(' ');
 
-   for (int i = 0; i < BLOCK_SIZE_BLE; i++)
-   {
-      READER_DEBUGPRINT.print(headerdata[i]);
-      READER_DEBUGPRINT.print(' ');
-   }
-   READER_DEBUGPRINT.println(' ');
+   // for (int i = 0; i < BLOCK_SIZE_BLE; i++)
+   // {
+   //    READER_DEBUGPRINT.print(headerdata[i]);
+   //    READER_DEBUGPRINT.print(' ');
+   // }
+   // READER_DEBUGPRINT.println(' ');
 
-   for (int i = 0; i < message_length; i++)
-   {
-      READER_DEBUGPRINT.print(pagedata[i]);
-      READER_DEBUGPRINT.print(' ');
-   }
-   READER_DEBUGPRINT.println(' ');
-
-
-
+   // for (int i = 0; i < message_length; i++)
+   // {
+   //    READER_DEBUGPRINT.print(pagedata[i]);
+   //    READER_DEBUGPRINT.print(' ');
+   // }
+   // READER_DEBUGPRINT.println(' ');
 
    // reset the page index
    int index = 0;
@@ -544,10 +549,68 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    }
    READER_DEBUGPRINT.println(' ');
 
+   READER_DEBUGPRINT.println(HexStr(EOR, FOOTER_BYTES));
+
    // release the blocker
    _readerBusy = false;
 }
 #pragma endregion
+
+void insert_substring(char *a, const char *b, int position)
+{
+   char *f, *e;
+   int length;
+
+   length = strlen(a);
+
+   f = substring(a, 1, position - 1);
+   e = substring(a, position, length - position + 1);
+
+   strcpy(a, "");
+   strcat(a, f);
+   free(f);
+   strcat(a, b);
+   strcat(a, e);
+   free(e);
+}
+
+char *substring(char *string, int position, int length)
+{
+   char *pointer;
+   int c;
+
+   pointer = (char *)malloc(length + 1);
+
+   if (pointer == NULL)
+      exit(EXIT_FAILURE);
+
+   for (c = 0; c < length; c++)
+      *(pointer + c) = *((string + position - 1) + c);
+
+   *(pointer + c) = '\0';
+
+   return pointer;
+}
+
+///
+/// @brief converts an array of bytes into an ASCII string
+/// @brief E.g. {0x22, 0x4a, 0x0f, 0xe2} would return as '224a0fe2'
+/// @param data array of bytes
+/// @param len number of bytes to process
+/// @return standard C string (array of chars)
+///
+const char *HexStr(const uint8_t *data, int len)
+{
+   std::stringstream ss;
+   ss << std::hex;
+
+   for (int i(0); i < len; ++i)
+      ss << std::setw(2) << std::setfill('0') << (int)data[i];
+
+   std::string x = ss.str();
+
+   return x.c_str();
+}
 
 //-------------------------------------------------------------------------------------------------
 
@@ -1401,26 +1464,6 @@ void FlashLED(int onPeriod, int offPeriod)
    delay(onPeriod);
    digitalWrite(COMMS_LED, LOW);
    delay(offPeriod);
-}
-
-///
-/// @brief This simple method references a specific byte against a return value
-/// @brief in a CRC lookup table. There are two CRC types, one for outgoing and
-/// @brief another for incoming binary data. The two values CRC_in and CRC_out
-/// @brief are local to this class.
-/// @param inOut true if data is outbound to control
-/// @param new_char byte to lookup
-///
-void calculateCRC(bool inOut, byte new_char)
-{
-   if (inOut == OUT) // If out-going CRC is calculated
-   {
-      CRC_out = CRC_TABLE[CRC_out ^ new_char];
-   }
-   else
-   {
-      CRC_in = CRC_TABLE[CRC_in ^ new_char];
-   }
 }
 #pragma endregion
 
