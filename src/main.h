@@ -216,7 +216,19 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 //      [ 01 ] - value between 0x00 and 0xff (default is 0x00)
 //
 // > end of successfully transmitted payload
-uint8_t EOR[6] = {0x00, 0x00, 0x00, 0x00, 0x0d, 0x0a};
+
+#define PACKET_TYPE 0x52 // Describes the data type. Set to 'R' meaning RESPONSE
+#define RESERVED 0x23    // Describes the NULL byte. Set to '#' meaning IGNORE
+#define HEADER_BYTES 6   // how many bytes make up the header
+#define FOOTER_BYTES 4   // how many bytes make up the CRC32 block
+
+/// @brief  > RECORD HEADER
+/// @brief    These ten bytes describe both the data type as well as the total number of bytes
+uint8_t HEADER[HEADER_BYTES] = {0x00, 0x00, PACKET_TYPE,
+                                0x00, 0x00, RESERVED};
+
+/// @brief  > END OF RECORD four byte CRC32
+uint8_t EOR[FOOTER_BYTES] = {0x00, 0x00, 0x00, 0x00};
 
 /// @brief  > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};

@@ -445,7 +445,24 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
 
-   // generate the CRC for the header block
+   // what is the total message size in bytes?
+   int message_length = pagedata[1] + 3;
+
+   // how many bytes is this payload going to contain?
+   uint16_t totalBytes = BLOCK_SIZE_BLE + message_length;
+
+   // add the byte count to the header and publish
+   HEADER[3] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   HEADER[4] = (uint8_t)(totalBytes & 0x00ff);
+   txChar.writeValue(HEADER, HEADER_BYTES);
+
+   // generate the CRC for the payload header block
+   for (uint8_t i = 0; i < HEADER_BYTES; ++i)
+   {
+      crc.update(HEADER[i]);
+   }
+
+   // generate the CRC for the NFC (ISO 14443) header block
    for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
    {
       crc.update(headerdata[i]);
@@ -454,8 +471,15 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // write the header block
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
 
-   // what is the total message size in bytes?
-   int message_length = pagedata[1] + 3;
+
+
+
+   for (int i = 0; i < HEADER_BYTES; i++)
+   {
+      READER_DEBUGPRINT.print(HEADER[i]);
+      READER_DEBUGPRINT.print(' ');
+   }
+   READER_DEBUGPRINT.println(' ');
 
    for (int i = 0; i < BLOCK_SIZE_BLE; i++)
    {
@@ -470,6 +494,8 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       READER_DEBUGPRINT.print(' ');
    }
    READER_DEBUGPRINT.println(' ');
+
+
 
 
    // reset the page index
@@ -507,11 +533,11 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // publish the final CRC as an array of bytes
    //
    crc.finalizeAsArray(EOR);
-   txChar.writeValue(EOR, 6);
+   txChar.writeValue(EOR, FOOTER_BYTES);
    crc.reset();
 
    // DEBUG PRINT THE CRC
-   for (int i = 0; i < 6; i++)
+   for (int i = 0; i < FOOTER_BYTES; i++)
    {
       READER_DEBUGPRINT.print(EOR[i]);
       READER_DEBUGPRINT.print(' ');
