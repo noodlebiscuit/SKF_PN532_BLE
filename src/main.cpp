@@ -448,21 +448,23 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // how many bytes is this payload going to contain?
    uint16_t totalBytes = BLOCK_SIZE_BLE + message_length;
 
-   // add the byte count to the header and publish
-   HEADER[3] = (uint8_t)((totalBytes & 0xff00) >> 8);
-   HEADER[4] = (uint8_t)(totalBytes & 0x00ff);
-
-   // set the payload length
+   // set the SCANNDY PROTOCOL payload length
    PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
    PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
 
-   txChar.writeValue(HEADER, HEADER_BYTES);
+   // create the default SCANNDY PROTOCOL header
+   char sComP_header[] = "0000R#";
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
+   insert_substring(sComP_header, payloadLength, 6);
 
    // generate the CRC for the payload header block
-   for (uint8_t i = 0; i < HEADER_BYTES; ++i)
+   for (uint8_t i = 0; i < 10; ++i)
    {
-      crc.update(HEADER[i]);
+      crc.update(sComP_header[i]);
    }
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(sComP_header, false);
 
    // generate the CRC for the NFC (ISO 14443) header block
    for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
@@ -470,38 +472,8 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       crc.update(headerdata[i]);
    }
 
-   // write the header block
+   // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
-
-   // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-   char sComP_header[] = "0000R#";
-   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
-   insert_substring(sComP_header, payloadLength, 6);
-   READER_DEBUGPRINT.println(sComP_header);
-
-   // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-   // for (int i = 0; i < HEADER_BYTES; i++)
-   // {
-   //    READER_DEBUGPRINT.print(HEADER[i]);
-   //    READER_DEBUGPRINT.print(' ');
-   // }
-   // READER_DEBUGPRINT.println(' ');
-
-   // for (int i = 0; i < BLOCK_SIZE_BLE; i++)
-   // {
-   //    READER_DEBUGPRINT.print(headerdata[i]);
-   //    READER_DEBUGPRINT.print(' ');
-   // }
-   // READER_DEBUGPRINT.println(' ');
-
-   // for (int i = 0; i < message_length; i++)
-   // {
-   //    READER_DEBUGPRINT.print(pagedata[i]);
-   //    READER_DEBUGPRINT.print(' ');
-   // }
-   // READER_DEBUGPRINT.println(' ');
 
    // reset the page index
    int index = 0;
@@ -529,33 +501,37 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
       crc.update(pagedata[i]);
    }
 
-   //
-   // send the EOR packet with the CHECKSUM at position - 0x00, CRC, 0x0D, 0x0A
-   //
+   // add the serial port delay to improve comms efficiency
    delayMicroseconds(BLOCK_WAIT_BLE);
 
-   //
    // publish the final CRC as an array of bytes
-   //
    crc.finalizeAsArray(EOR);
-   txChar.writeValue(EOR, FOOTER_BYTES);
+   const char *crcValue = HexStr(EOR, FOOTER_BYTES);
+   txChar.writeValue(crcValue, false);
    crc.reset();
 
-   // DEBUG PRINT THE CRC
-   for (int i = 0; i < FOOTER_BYTES; i++)
-   {
-      READER_DEBUGPRINT.print(EOR[i]);
-      READER_DEBUGPRINT.print(' ');
-   }
-   READER_DEBUGPRINT.println(' ');
+   // close for DEBUG
+   txChar.writeValue(CR_LF, 2);
 
+#ifdef READER_BROADCAST_DEBUG
+   // print the CRC32 checksum
    READER_DEBUGPRINT.println(HexStr(EOR, FOOTER_BYTES));
+#endif
 
    // release the blocker
    _readerBusy = false;
 }
 #pragma endregion
 
+//-------------------------------------------------------------------------------------------------
+
+#pragma region STRING MANAGEMENT AND SUPPORT
+///
+/// @brief
+/// @param a
+/// @param b
+/// @param position
+///
 void insert_substring(char *a, const char *b, int position)
 {
    char *f, *e;
@@ -574,6 +550,13 @@ void insert_substring(char *a, const char *b, int position)
    free(e);
 }
 
+///
+/// @brief
+/// @param string
+/// @param position
+/// @param length
+/// @return
+///
 char *substring(char *string, int position, int length)
 {
    char *pointer;
@@ -605,12 +588,14 @@ const char *HexStr(const uint8_t *data, int len)
    ss << std::hex;
 
    for (int i(0); i < len; ++i)
+   {
       ss << std::setw(2) << std::setfill('0') << (int)data[i];
+   }
 
    std::string x = ss.str();
-
    return x.c_str();
 }
+#pragma endregion
 
 //-------------------------------------------------------------------------------------------------
 

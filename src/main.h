@@ -41,13 +41,13 @@ using namespace std::chrono;
 #define UUID_CHARACTERISTIC_MANUFACTURER "00002A29-0000-1000-8000-00805f9b34fb" // manufacturers name for device information service
 
 // device characteristics
-#define LOCAL_NAME_OF_PERIPHERAL "NFC Reader"
-#define PERIPERHAL_DEVICE_NAME "NFC Reader"
-#define MANUFACTURER_NAME_STRING "SKF (U.K.) Limited"
-#define MODEL_NAME_STRING "EXTERNAL-NFC-READER"
-#define HARDWARE_NAME_STRING "PROTOTYPE 2"
+#define LOCAL_NAME_OF_PERIPHERAL "Ecco-Smart-HF BLE"
+#define PERIPERHAL_DEVICE_NAME "Ecco-Smart-HF BLE"
+#define MANUFACTURER_NAME_STRING "FEIG ELECTRONIC GmbH"
+#define MODEL_NAME_STRING "Ecco-Smart-Plus"
+#define HARDWARE_NAME_STRING "Emulator by SKF (UK)"
 #define FIRMWARE_NAME_STRING "20230703-2202"
-#define SERIAL_NO_NAME_STRING "PT-01-DEV"
+#define SERIAL_NO_NAME_STRING "HF-BLE-0000001-DEV"
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
 const uint8_t SKF_MANUFACTURER_CODE[2] = {0x0e, 0x04};
@@ -148,7 +148,7 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 
 // #define READER_DEBUG
 // #define READER_DEBUG_APPEND_FUNCTIONALITY
-
+#define READER_BROADCAST_DEBUG
 #define READER_DEBUGPRINT Serial
 
 //------------------------------------------------------------------------------------------------
@@ -239,6 +239,9 @@ uint8_t PAYLOAD_LEGTH[LENGTH_BYTES] = {0x00, 0x00};
 /// @brief  > END OF RECORD four byte CRC32
 uint8_t EOR[FOOTER_BYTES] = {0x00, 0x00, 0x00, 0x00};
 
+/// @brief  > BASIC CARRIAGE RETURN \ LINE FEED
+uint8_t CR_LF[2] = {0x0d, 0x0a};
+
 /// @brief  > error in attempting to publish to card (out of memory)
 uint8_t READ_ERROR_UNKNOWN[4] = {0x01, 0x01, 0x0d, 0x0a};
 
@@ -250,6 +253,8 @@ uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
 
 /// @brief  > error in attempting to read NDEF data from an empty card
 uint8_t CARD_ERROR_EMPTY[4] = {0x04, 0x01, 0x0d, 0x0a};
+
+
 
 //------------------------------------------------------------------------------------------------
 

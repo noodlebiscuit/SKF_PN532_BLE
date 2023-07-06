@@ -45,8 +45,8 @@ uint32_t CRC32::finalize() const
 void CRC32::finalizeAsArray(uint8_t *crc8)
 {
     uint32_t crc32 = finalize();
-    crc8[3] = (uint32_t)((crc32 & 0xff000000) >> 24);
-    crc8[2] = (uint32_t)((crc32 & 0x00ff0000) >> 16);
-    crc8[1] = (uint32_t)((crc32 & 0x0000ff00) >> 8);
-    crc8[0] = (uint32_t)(crc32 & 0x000000ff);
+    crc8[0] = (uint32_t)((crc32 & 0xff000000) >> 24);
+    crc8[1] = (uint32_t)((crc32 & 0x00ff0000) >> 16);
+    crc8[2] = (uint32_t)((crc32 & 0x0000ff00) >> 8);
+    crc8[3] = (uint32_t)(crc32 & 0x000000ff);
 }
