@@ -473,6 +473,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    }
 
    // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
+   delayMicroseconds(BLOCK_WAIT_BLE);
    txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
 
    // reset the page index
@@ -511,6 +512,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    crc.reset();
 
    // close for DEBUG
+   delayMicroseconds(BLOCK_WAIT_BLE);
    txChar.writeValue(CR_LF, 2);
 
 #ifdef READER_BROADCAST_DEBUG
