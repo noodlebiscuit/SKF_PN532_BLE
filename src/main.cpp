@@ -458,19 +458,13 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    insert_substring(sComP_header, payloadLength, 6);
 
    // generate the CRC for the payload header block
-   for (uint8_t i = 0; i < 10; ++i)
-   {
-      crc.update(sComP_header[i]);
-   }
+   crc.update(sComP_header, 10);
 
    // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
    txChar.writeValue(sComP_header, false);
 
    // generate the CRC for the NFC (ISO 14443) header block
-   for (uint8_t i = 0; i < BLOCK_SIZE_BLE; ++i)
-   {
-      crc.update(headerdata[i]);
-   }
+   crc.update(headerdata, BLOCK_SIZE_BLE);
 
    // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
    delayMicroseconds(BLOCK_WAIT_BLE);
@@ -497,10 +491,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
    // append the CRC based on the transmitted payload
    message_length = pagedata[1] + 3;
-   for (int i = 0; i < message_length; ++i)
-   {
-      crc.update(pagedata[i]);
-   }
+   crc.update(pagedata, message_length);
 
    // add the serial port delay to improve comms efficiency
    delayMicroseconds(BLOCK_WAIT_BLE);
