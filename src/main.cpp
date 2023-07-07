@@ -53,7 +53,15 @@ volatile bool _enableTimeouts = false;
 
 /// @brief  when incremented to a specified value, publish the current battery level
 uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
+
+/// @brief  calculate the CRC value of any byte or character stream
+CRC32 crc;
+
+/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
+char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 #pragma endregion
+
+
 
 CyclicByteBuffer<BLE_ATTRIBUTE_MAX_VALUE_LENGTH> _receiveBuffer;
 size_t _numAvailableLines;
@@ -430,11 +438,6 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
    _readerBusy = false;
 }
 
-CRC32 crc;
-
-/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
-char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
-
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
 /// @param pagedata raw NDEF message payload
@@ -510,11 +513,6 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // close for DEBUG
    delayMicroseconds(BLOCK_WAIT_BLE);
    txChar.writeValue(CR_LF, 2);
-
-   // #ifdef READER_BROADCAST_DEBUG
-   //  print the CRC32 checksum
-   READER_DEBUGPRINT.println(HexStr(EOR, FOOTER_BYTES));
-   // #endif
 
    // release the blocker
    _readerBusy = false;
