@@ -432,6 +432,9 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
 
 CRC32 crc;
 
+/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
+char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
+
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
 /// @param pagedata raw NDEF message payload
@@ -452,16 +455,20 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
    PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
 
-   // create the default SCANNDY PROTOCOL header
-   char sComP_header[] = "0000R#";
    const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
-   insert_substring(sComP_header, payloadLength, 6);
+
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_rfid_response_header[i + 5] = payloadLength[i];
+   }
+
+   READER_DEBUGPRINT.println(scomp_rfid_response_header);
 
    // generate the CRC for the payload header block
-   crc.update(sComP_header, 10);
+   crc.update(scomp_rfid_response_header, 19);
 
    // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
-   txChar.writeValue(sComP_header, false);
+   txChar.writeValue(scomp_rfid_response_header, false);
 
    // generate the CRC for the NFC (ISO 14443) header block
    crc.update(headerdata, BLOCK_SIZE_BLE);
@@ -506,10 +513,10 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    delayMicroseconds(BLOCK_WAIT_BLE);
    txChar.writeValue(CR_LF, 2);
 
-#ifdef READER_BROADCAST_DEBUG
-   // print the CRC32 checksum
+   // #ifdef READER_BROADCAST_DEBUG
+   //  print the CRC32 checksum
    READER_DEBUGPRINT.println(HexStr(EOR, FOOTER_BYTES));
-#endif
+   // #endif
 
    // release the blocker
    _readerBusy = false;
