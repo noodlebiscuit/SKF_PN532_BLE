@@ -13,7 +13,6 @@
 #include "CRC32/CyclicByteBuffer.h"
 #include "CRC32/CRC32.h"
 
-
 #pragma once
 #include <stdint.h>
 
@@ -221,9 +220,9 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 //
 // > end of successfully transmitted payload
 
-#define HEADER_BYTES 6   // how many bytes make up the header
-#define FOOTER_BYTES 4   // how many bytes make up the CRC32 block
-#define LENGTH_BYTES 2   // how many bytes make up the CRC32 block
+#define HEADER_BYTES 19 // how many bytes make up the header
+#define FOOTER_BYTES 4  // how many bytes make up the CRC32 block
+#define LENGTH_BYTES 2  // how many bytes make up the CRC32 block
 
 /// @brief  > RECORD HEADER
 /// @brief    These ten bytes describe both the data type as well as the total number of bytes
@@ -246,8 +245,6 @@ uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
 
 /// @brief  > error in attempting to read NDEF data from an empty card
 uint8_t CARD_ERROR_EMPTY[4] = {0x04, 0x01, 0x0d, 0x0a};
-
-
 
 //------------------------------------------------------------------------------------------------
 
@@ -347,8 +344,8 @@ void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
 
 char *substring(char *, int, int);
-void insert_substring(char*, const char*, int);
-const char* HexStr(const uint8_t*, int);
+void insert_substring(char *, const char *, int);
+const char *HexStr(const uint8_t *, int);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------

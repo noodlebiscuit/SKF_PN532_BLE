@@ -451,21 +451,19 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // how many bytes is this payload going to contain?
    uint16_t totalBytes = BLOCK_SIZE_BLE + message_length;
 
-   // set the SCANNDY PROTOCOL payload length
+   // set the SCOMP PROTOCOL total TAG payload length
    PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
    PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
 
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
    const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
-
    for (int i = 0; i < (int)sizeof(payloadLength); i++)
    {
       scomp_rfid_response_header[i + 5] = payloadLength[i];
    }
 
-   READER_DEBUGPRINT.println(scomp_rfid_response_header);
-
    // generate the CRC for the payload header block
-   crc.update(scomp_rfid_response_header, 19);
+   crc.update(scomp_rfid_response_header, HEADER_BYTES);
 
    // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
    txChar.writeValue(scomp_rfid_response_header, false);
