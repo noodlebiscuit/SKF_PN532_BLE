@@ -449,7 +449,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    int message_length = pagedata[1] + 3;
 
    // how many bytes is this payload going to contain?
-   uint16_t totalBytes = BLOCK_SIZE_BLE + message_length;
+   uint16_t totalBytes = RFID_RESPONSE_BYTES + BLOCK_SIZE_BLE + message_length;
 
    // set the SCOMP PROTOCOL total TAG payload length
    PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
