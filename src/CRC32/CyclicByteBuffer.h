@@ -36,6 +36,10 @@ public:
     /// @brief clear ring buffer contents
     void clear()
     {
+        for (int i=0; i<length; i++)
+        {
+            ringBuffer[i] = 0x00;
+        }
         newestIndex = 0;
         length = 0;
     }
@@ -43,13 +47,16 @@ public:
     /// @brief this.get(0) is the oldest value, this.get(this.getLength() - 1) is the newest value
     /// @param index
     /// @return value as integer
-    int get(size_t index)
+    uint8_t get(size_t index)
     {
-        if (index < 0 || index >= length)
-        {
-            return -1;
-        }
         return ringBuffer[(N + newestIndex - length + index) % N];
+    }
+
+    /// @brief get the entire buffer
+    /// @return value as integer
+    uint8_t* get()
+    {
+        return ringBuffer;
     }
 
     /// @brief returns buffer length
