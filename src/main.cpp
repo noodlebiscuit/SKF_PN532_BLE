@@ -1490,29 +1490,23 @@ void FlashLED(int onPeriod, int offPeriod)
 ///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
-   //
-   // before we do anything, load the contents of the characteristic receive
-   // buffer into a small local cache. This should be no more than 20 bytes
-   //
-   // char tmp[RX_BUFFER_SIZE];
-   // int dataLength = rxChar.readValue(tmp, characteristic.valueLength());
 
-   // READER_DEBUGPRINT.print("tmp buffer: ");
-   // READER_DEBUGPRINT.print(dataLength);
-   // READER_DEBUGPRINT.print(" - ");
-   // READER_DEBUGPRINT.println(tmp);
-
+   // first of all, we load the received bluetooth data into the receive buffer
    for (size_t i = 0; i < min(characteristic.valueLength(), sizeof(_receiveBuffer)); i++)
    {
       _receiveBuffer.add(characteristic.value()[i]);
    }
 
+   //
+   // now we need to find the start of an SCOMP QUERY. This is done by searhing for the
+   // character sequence nnnnQpppp#, where nn and pp are two character HEX strings
+   //
    int posn = 0;
    if (_receiveBuffer.getLength() > 10)
    {
       for (int i = 0; i < (int)(_receiveBuffer.getLength() - 5); i++)
       {
-         if ((char)_receiveBuffer.get(i) == 'Q' & (char)_receiveBuffer.get(i + 5) == '#')
+         if ((char)(_receiveBuffer.get(i) == 'Q') & (char)(_receiveBuffer.get(i + 5) == '#'))
          {
             posn = i;
             break;
@@ -1520,53 +1514,34 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
    }
 
-   posn-=4;
-
-   READER_DEBUGPRINT.println(posn);
-
-   char *buffer = new char[_receiveBuffer.getLength()];
-
-   int k=0;
-   for (int i = posn; i < (int)(_receiveBuffer.getLength()-posn); i++)
+   // if posn is four or above, then we have detected the start of an SCOMP QUERY string
+   if (posn >= 4)
    {
-      buffer[k++] = (char)_receiveBuffer.get(i);
-   }   
-   
-   READER_DEBUGPRINT.println(buffer);
-   delete[] buffer;
+      // jump back to the start of the message (to include the request ID)
+      posn -= 4;
+      READER_DEBUGPRINT.println(posn);
 
-   // _receiveBuffer.get(0) is the oldest value,
-   // _receiveBuffer.get(_receiveBuffer.getLength() - 1) is the newest value
-   //....Q....#
+      // we need a temporary buffer here
+      char *buffer = new char[_receiveBuffer.getLength()];
 
-   bool flush = false;
+      // OK, lock and load, and let's see what's in the barrel!
+      int index = 0;
+      for (int i = posn; i < (int)(_receiveBuffer.getLength() - posn); i++)
+      {
+         buffer[index++] = (char)_receiveBuffer.get(i);
+      }
 
-   // for (size_t i = 0; i < min(characteristic.valueLength(), sizeof(_receiveBuffer)); i++)
-   //{
-   //_receiveBuffer.add(characteristic.value()[i]);
 
-   // size_t bufferLength = _receiveBuffer.getLength();
 
-   // if (bufferLength > 1)
-   //{
-   //  if (_receiveBuffer.value()[bufferLength - 2] == 0x0d & _receiveBuffer.value()[bufferLength - 1] = 0x0a)
-   //  {
-   //     READER_DEBUGPRINT.println("> ");
-   //     flush = true;
-   //  }
-   //}
-   //}
+      
 
-   // if (flush)
-   // {
-   //    for (int i = 0; i < (int)_receiveBuffer.getLength(); i++)
-   //    {
-   //       uint8_t k = _receiveBuffer.pop();
-   //       READER_DEBUGPRINT.print(k);
-   //       READER_DEBUGPRINT.print(' ');
-   //    }
-   //    _receiveBuffer.clear();
-   // }
+
+      READER_DEBUGPRINT.println(buffer);
+      delete[] buffer;
+   }
+
+
+
 }
 
 // ************************************************************************************************
