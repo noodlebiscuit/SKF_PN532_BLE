@@ -61,7 +61,7 @@ CRC32 crc;
 char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 #pragma endregion
 
-CyclicByteBuffer<50> _receiveBuffer;
+CyclicByteBuffer<100> _receiveBuffer;
 size_t _numAvailableLines;
 unsigned long long _lastFlushTime;
 size_t _transmitBufferLength;
@@ -1519,10 +1519,12 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    {
       // jump back to the start of the message (to include the request ID)
       posn -= 4;
-      READER_DEBUGPRINT.println(posn);
 
       // we need a temporary buffer here
       char *buffer = new char[_receiveBuffer.getLength()];
+
+      // clear the buffer contents
+      memset(buffer, 0, _receiveBuffer.getLength());
 
       // OK, lock and load, and let's see what's in the barrel!
       int index = 0;
@@ -1532,27 +1534,58 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
 
       // get the total payload length
-      char *payloadLength = new char[4];
+      char *payloadLengthString = new char[4];
+      memset(payloadLengthString, 0, 4);
 
-      READER_DEBUGPRINT.print("--");
-      READER_DEBUGPRINT.print(payloadLength);
-      READER_DEBUGPRINT.println("--");
+      //
+      // well, it's the payload length. Now we need to covert this four character long
+      // representation of of a sixteen bit number - into an actual sixteen bit number
+      //
+      payloadLengthString[0] = buffer[5];
+      payloadLengthString[1] = buffer[6];
+      payloadLengthString[2] = buffer[7];
+      payloadLengthString[3] = buffer[8];
 
-      payloadLength[0] = buffer[5];
-      payloadLength[1] = buffer[6];
-      payloadLength[2] = buffer[7];
-      payloadLength[3] = buffer[8];
+      char *ptr;
+      int payloadLength = strtol(payloadLengthString, &ptr, 16);
 
-      uint8_t byte1 = (payloadLength[0] - '0') * 0x10 + (payloadLength[1] - '0');
-      uint8_t byte2 = (payloadLength[2] - '0') * 0x10 + (payloadLength[3] - '0');
+      int totalLength = payloadLength + CRC32_CHARACTERS + 10;
 
-      int result = (int)(byte1)*256 + (int)(byte2);
+      READER_DEBUGPRINT.print("payload string: ");
+      READER_DEBUGPRINT.println(payloadLengthString);
 
-      READER_DEBUGPRINT.print("<");
-      READER_DEBUGPRINT.print(result);
-      READER_DEBUGPRINT.println(">");
+      READER_DEBUGPRINT.print("length of command payload: ");
+      READER_DEBUGPRINT.println(payloadLength);
 
-      delete[] payloadLength;
+      READER_DEBUGPRINT.print("total length of payload (with CRC): ");
+      READER_DEBUGPRINT.println(totalLength);
+
+      READER_DEBUGPRINT.print("receive buffer length: ");
+      READER_DEBUGPRINT.println(_receiveBuffer.getLength());
+
+      // OK, have all the required character been received yet?
+      if (totalLength <= _receiveBuffer.getLength())
+      {
+         // clear the buffer contents again..
+         memset(buffer, 0, _receiveBuffer.getLength());
+
+         index = 0;
+         for (int i = posn; i < (int)((payloadLength + 8 + CRC32_CHARACTERS) - (posn)); i++)
+         {
+            buffer[index++] = (char)_receiveBuffer.get(i);
+         }
+
+         READER_DEBUGPRINT.print("< ");
+         READER_DEBUGPRINT.println(buffer);
+
+         _receiveBuffer.clear();
+      }
+      else
+      {
+         READER_DEBUGPRINT.println("... INVALID ...");
+      }
+
+      delete[] payloadLengthString;
       delete[] buffer;
    }
 }
