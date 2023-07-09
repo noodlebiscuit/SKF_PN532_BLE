@@ -1483,6 +1483,8 @@ void FlashLED(int onPeriod, int offPeriod)
 // ************************************************************************************************
 // ************************************************************************************************
 
+#define PAYLOAD_LENGTH_BYTES 4
+
 ///
 /// @brief EVENT on data written to SPP
 /// @param central
@@ -1501,24 +1503,36 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    // now we need to find the start of an SCOMP QUERY. This is done by searhing for the
    // character sequence nnnnQpppp#, where nn and pp are two character HEX strings
    //
-   int posn = 0;
+   int startOfSequence = 0;
    if (_receiveBuffer.getLength() > 10)
    {
       for (int i = 0; i < (int)(_receiveBuffer.getLength() - 5); i++)
       {
          if ((char)(_receiveBuffer.get(i) == 'Q') & (char)(_receiveBuffer.get(i + 5) == '#'))
          {
-            posn = i;
+            startOfSequence = i;
             break;
          }
       }
    }
 
+   //
+   // Message is of format as shown below. We're searching for chars 'Q' and '#'
+   //
+   //    ->    nnnn Q pppp # n....n cccccccc
+   //
+   // When we've detected the sequence, we then need to move back FOUR characters
+   // so that we're pointing to the character as shown below as an 'X':
+   //
+   //    ->    .... Q X... # ...... ........
+   // 
+   //
+
    // if posn is four or above, then we have detected the start of an SCOMP QUERY string
-   if (posn >= 4)
+   if (startOfSequence >= PAYLOAD_LENGTH_BYTES)
    {
       // jump back to the start of the message (to include the request ID)
-      posn -= 4;
+      startOfSequence -= PAYLOAD_LENGTH_BYTES;
 
       // we need a temporary buffer here
       char *buffer = new char[_receiveBuffer.getLength()];
@@ -1528,7 +1542,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 
       // OK, lock and load, and let's see what's in the barrel!
       int index = 0;
-      for (int i = posn; i < (int)(_receiveBuffer.getLength() - posn); i++)
+      for (int i = startOfSequence; i < (int)(_receiveBuffer.getLength() - startOfSequence); i++)
       {
          buffer[index++] = (char)_receiveBuffer.get(i);
       }
@@ -1541,27 +1555,31 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       // well, it's the payload length. Now we need to covert this four character long
       // representation of of a sixteen bit number - into an actual sixteen bit number
       //
-      payloadLengthString[0] = buffer[5];
-      payloadLengthString[1] = buffer[6];
-      payloadLengthString[2] = buffer[7];
-      payloadLengthString[3] = buffer[8];
+      for (int i=0; i<4; i++)
+      {
+         payloadLengthString[i] = buffer[i+5];
+      }
 
+      //
+      // now we need to convert the eight character long length string into a LONG value
+      // and then move that to a sixteen bit unsigned value
+      //
       char *ptr;
-      int payloadLength = strtol(payloadLengthString, &ptr, 16);
+      uint16_t payloadLength = (uint16_t)strtol(payloadLengthString, &ptr, 16);
 
+      // But what is the total length of the message (i.e. how many chars to we need?)
       int totalLength = payloadLength + CRC32_CHARACTERS + 10;
+
 
       READER_DEBUGPRINT.print("payload string: ");
       READER_DEBUGPRINT.println(payloadLengthString);
-
       READER_DEBUGPRINT.print("length of command payload: ");
       READER_DEBUGPRINT.println(payloadLength);
-
       READER_DEBUGPRINT.print("total length of payload (with CRC): ");
       READER_DEBUGPRINT.println(totalLength);
-
       READER_DEBUGPRINT.print("receive buffer length: ");
       READER_DEBUGPRINT.println(_receiveBuffer.getLength());
+
 
       // OK, have all the required character been received yet?
       if (totalLength <= _receiveBuffer.getLength())
@@ -1570,7 +1588,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          memset(buffer, 0, _receiveBuffer.getLength());
 
          index = 0;
-         for (int i = posn; i < (int)((payloadLength + 8 + CRC32_CHARACTERS) - (posn)); i++)
+         for (int i = startOfSequence; i < (int)((payloadLength + 8 + CRC32_CHARACTERS) - (startOfSequence)); i++)
          {
             buffer[index++] = (char)_receiveBuffer.get(i);
          }
