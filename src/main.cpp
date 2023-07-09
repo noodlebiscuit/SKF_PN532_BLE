@@ -1531,17 +1531,30 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          buffer[index++] = (char)_receiveBuffer.get(i);
       }
 
+      // get the total payload length
+      char *payloadLength = new char[4];
 
+      READER_DEBUGPRINT.print("--");
+      READER_DEBUGPRINT.print(payloadLength);
+      READER_DEBUGPRINT.println("--");
 
-      
+      payloadLength[0] = buffer[5];
+      payloadLength[1] = buffer[6];
+      payloadLength[2] = buffer[7];
+      payloadLength[3] = buffer[8];
 
+      uint8_t byte1 = (payloadLength[0] - '0') * 0x10 + (payloadLength[1] - '0');
+      uint8_t byte2 = (payloadLength[2] - '0') * 0x10 + (payloadLength[3] - '0');
 
-      READER_DEBUGPRINT.println(buffer);
+      int result = (int)(byte1)*256 + (int)(byte2);
+
+      READER_DEBUGPRINT.print("<");
+      READER_DEBUGPRINT.print(result);
+      READER_DEBUGPRINT.println(">");
+
+      delete[] payloadLength;
       delete[] buffer;
    }
-
-
-
 }
 
 // ************************************************************************************************
