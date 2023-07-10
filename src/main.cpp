@@ -1487,13 +1487,13 @@ void FlashLED(int onPeriod, int offPeriod)
 
 ///
 /// @brief EVENT on data written to SPP
-/// @brief Message is of format as shown below. Initially we search for chars 'Q' and '#'
+/// @brief Message is of format as shown below. Initially we search for chars 'Q'  and  '#'
 /// @brief
 /// @brief     ->    nnnn Q pppp # n....n cccccccc
 /// @brief
-/// @brief When we've detected the sequence, we then need to move back FOUR characters
-/// @brief so that we're pointing to the characters 'PPPP' - which represent the complete
-/// @brief length of the payload as a four-character long HEX string
+/// @brief When we've detected this two character sequence,  we then need to move back FOUR
+/// @brief characters so that we're pointing to the characters 'PPPP' - which represent the
+/// @brief complete length of the payload as a four-character long HEX string
 /// @brief
 /// @brief     ->    .... Q PPPP # nnnnnn cccccccc
 /// @param central
@@ -1501,7 +1501,6 @@ void FlashLED(int onPeriod, int offPeriod)
 ///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
-
    // first of all, we load the received bluetooth data into the receive buffer
    for (size_t i = 0; i < min(characteristic.valueLength(), sizeof(_receiveBuffer)); i++)
    {
@@ -1513,7 +1512,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    // character sequence nnnnQpppp#, where nn and pp are two character HEX strings
    //
    int startOfSequence = 0;
-   if (_receiveBuffer.getLength() > 10)
+   if (_receiveBuffer.getLength() > QUERY_HEADER_BYTES)
    {
       for (int i = 0; i < (int)(_receiveBuffer.getLength() - 5); i++)
       {
@@ -1565,10 +1564,11 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       uint16_t payloadLength = (uint16_t)strtol(payloadLengthString, &ptr, 16);
 
       // But what is the total length of the message (i.e. how many chars to we need?)
-      uint16_t totalLength = payloadLength + CRC32_CHARACTERS + 10;
+      uint16_t totalLength = payloadLength + CRC32_CHARACTERS + QUERY_HEADER_BYTES;
 
-      // we need to extract the core payload MINUS the CRC32
-      char *queryPayload = new char[payloadLength + 11];
+      // we need to extract the core payloads - one with, and one without the CRC32
+      char *queryPayload = new char[payloadLength + QUERY_HEADER_BYTES + 1];
+      char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
 
       // READER_DEBUGPRINT.print("payload string: ");
       // READER_DEBUGPRINT.println(payloadLengthString);
@@ -1584,25 +1584,43 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       {
          // clear the buffer contents again..
          memset(buffer, 0, _receiveBuffer.getLength());
-         memset(queryPayload, 0, payloadLength + 10);
+         memset(queryPayload, 0, payloadLength + QUERY_HEADER_BYTES + 1);
+         memset(queryCRC32, 0, CRC32_CHARACTERS + 1);
 
+         // extract the complete complete SCOMP QUERY payload (with CRC32)
          index = 0;
-         for (int i = startOfSequence; i < (int)((payloadLength + 8 + CRC32_CHARACTERS) - (startOfSequence)); i++)
+         for (int i = startOfSequence; i < (int)((payloadLength + 10 + CRC32_CHARACTERS) - (startOfSequence)); i++)
          {
             buffer[index++] = (char)_receiveBuffer.get(i);
          }
 
-         for (int i = 0; i < payloadLength + 10; i++)
+         // now extract ONLY the HEADER and the QUERY (we use this to calculate the CRC32)
+         for (int i = 0; i < payloadLength + QUERY_HEADER_BYTES; i++)
          {
             queryPayload[i] = buffer[i];
          }
+         queryPayload[payloadLength + QUERY_HEADER_BYTES] = '\n';
 
-         queryPayload[payloadLength + 10] = 0x00;
+         // next we extract the embedded CRC32 value from the received SCOMP QUERY
+         for (int i = 0; i < CRC32_CHARACTERS; i++)
+         {
+            queryCRC32[i] = buffer[i + payloadLength + QUERY_HEADER_BYTES];
+         }
+         queryCRC32[(FOOTER_BYTES * 2)] = '\n';
+
+         // now we extract the CRC32 from the [*queryBuffer]
+         crc.update(queryPayload, payloadLength + QUERY_HEADER_BYTES);
+         crc.finalizeAsArray(EOR);
+
+         // add a terminating character
+         queryPayload[payloadLength + QUERY_HEADER_BYTES] = 0x00;
 
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(buffer);
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(queryPayload);
+         READER_DEBUGPRINT.print(">> ");
+         READER_DEBUGPRINT.println(queryCRC32);
 
          _receiveBuffer.clear();
       }
@@ -1611,9 +1629,11 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.println("... INVALID ...");
       }
 
+      delete[] queryCRC32;
       delete[] queryPayload;
       delete[] payloadLengthString;
       delete[] buffer;
+      crc.reset();
    }
 }
 

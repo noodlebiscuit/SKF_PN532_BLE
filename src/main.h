@@ -221,6 +221,7 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 // > end of successfully transmitted payload
 
 #define HEADER_BYTES 19       // how many bytes make up the complete SCOMP PROTOCOL header
+#define QUERY_HEADER_BYTES 10 // how many bytes in a QUERY payload form the SCOMP PROTOCOL header
 #define RFID_RESPONSE_BYTES 9 // how many bytes in the SCOMP RFID response data header
 #define FOOTER_BYTES 4        // how many bytes make up the CRC32 block
 #define LENGTH_BYTES 2        // how many bytes make up the CRC32 block
