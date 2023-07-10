@@ -1569,6 +1569,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       // we need to extract the core payloads - one with, and one without the CRC32
       char *queryPayload = new char[payloadLength + QUERY_HEADER_BYTES + 1];
       char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
+      char *valueCRC32 = new char[3];
 
       // READER_DEBUGPRINT.print("payload string: ");
       // READER_DEBUGPRINT.println(payloadLengthString);
@@ -1586,6 +1587,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
          memset(queryPayload, 0, payloadLength + QUERY_HEADER_BYTES + 1);
          memset(queryCRC32, 0, CRC32_CHARACTERS + 1);
+         memset(valueCRC32, 0, 3);
 
          // extract the complete complete SCOMP QUERY payload (with CRC32)
          index = 0;
@@ -1599,21 +1601,42 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          {
             queryPayload[i] = buffer[i];
          }
-         queryPayload[payloadLength + QUERY_HEADER_BYTES] = '\n';
+         queryPayload[payloadLength + QUERY_HEADER_BYTES] = (char)0x00;
 
          // next we extract the embedded CRC32 value from the received SCOMP QUERY
          for (int i = 0; i < CRC32_CHARACTERS; i++)
          {
             queryCRC32[i] = buffer[i + payloadLength + QUERY_HEADER_BYTES];
          }
-         queryCRC32[(FOOTER_BYTES * 2)] = '\n';
+         queryCRC32[CRC32_CHARACTERS] = (char)0x00;
 
          // now we extract the CRC32 from the [*queryBuffer]
          crc.update(queryPayload, payloadLength + QUERY_HEADER_BYTES);
          crc.finalizeAsArray(EOR);
 
-         // add a terminating character
-         queryPayload[payloadLength + QUERY_HEADER_BYTES] = 0x00;
+         bool crcIsConfirmed = true;
+         index = 0;
+         for (size_t i = 0; i < FOOTER_BYTES; i++)
+         {
+            valueCRC32[0] = queryCRC32[index++];
+            valueCRC32[1] = queryCRC32[index++];
+            valueCRC32[2] = '\n';
+            uint16_t checkValue = (uint16_t)strtol(valueCRC32, &ptr, 16);
+            if ((uint16_t)EOR[i] != checkValue)
+            {
+               crcIsConfirmed = false;
+               break;
+            }
+         }
+
+         if (crcIsConfirmed)
+         {
+            READER_DEBUGPRINT.println("CRC IS VALID!");
+         }
+         else
+         {
+            READER_DEBUGPRINT.println("ERROR: INVALID CRC");
+         }
 
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(buffer);
@@ -1629,6 +1652,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.println("... INVALID ...");
       }
 
+      delete[] valueCRC32;
       delete[] queryCRC32;
       delete[] queryPayload;
       delete[] payloadLengthString;
