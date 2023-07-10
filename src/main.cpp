@@ -1589,7 +1589,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 
          // extract the complete complete SCOMP QUERY payload (with CRC32)
          index = 0;
-         for (int i = startOfSequence; i < (int)((payloadLength + 10 + CRC32_CHARACTERS) - (startOfSequence)); i++)
+         for (int i = startOfSequence; i < (int)(totalLength - (startOfSequence)); i++)
          {
             buffer[index++] = (char)_receiveBuffer.get(i);
          }
