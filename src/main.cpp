@@ -61,7 +61,7 @@ CRC32 crc;
 char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 #pragma endregion
 
-CyclicByteBuffer<100> _receiveBuffer;
+CyclicByteBuffer<RECEIVE_BUFFER_LENGTH> _receiveBuffer;
 size_t _numAvailableLines;
 unsigned long long _lastFlushTime;
 size_t _transmitBufferLength;
@@ -1531,10 +1531,10 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       startOfSequence -= PAYLOAD_LENGTH_BYTES;
 
       // we need a temporary buffer here
-      char *buffer = new char[_receiveBuffer.getLength()];
+      char *buffer = new char[RECEIVE_BUFFER_LENGTH];
 
       // clear the buffer contents
-      memset(buffer, 0, _receiveBuffer.getLength());
+      memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
 
       // OK, lock and load, and let's see what's in the barrel!
       int index = 0;
@@ -1580,10 +1580,10 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       // READER_DEBUGPRINT.println(_receiveBuffer.getLength());
 
       // OK, have all the required character been received yet?
-      if (totalLength <= (uint16_t)_receiveBuffer.getLength())
+      if (totalLength >= (uint16_t)_receiveBuffer.getLength())
       {
          // clear the buffer contents again..
-         memset(buffer, 0, _receiveBuffer.getLength());
+         memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
          memset(queryPayload, 0, payloadLength + QUERY_HEADER_BYTES + 1);
          memset(queryCRC32, 0, CRC32_CHARACTERS + 1);
 
