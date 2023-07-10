@@ -1487,6 +1487,14 @@ void FlashLED(int onPeriod, int offPeriod)
 
 ///
 /// @brief EVENT on data written to SPP
+/// @brief Message is of format as shown below. We're searching for chars 'Q' and '#'
+/// @brief
+/// @brief     ->    nnnn Q pppp # n....n cccccccc
+/// @brief
+/// @brief When we've detected the sequence, we then need to move back FOUR characters
+/// @brief so that we're pointing to the character as shown below as an 'X':
+/// @brief
+/// @brief     ->    .... Q X... # ...... ........
 /// @param central
 /// @param characteristic
 ///
@@ -1516,18 +1524,6 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
    }
 
-   //
-   // Message is of format as shown below. We're searching for chars 'Q' and '#'
-   //
-   //    ->    nnnn Q pppp # n....n cccccccc
-   //
-   // When we've detected the sequence, we then need to move back FOUR characters
-   // so that we're pointing to the character as shown below as an 'X':
-   //
-   //    ->    .... Q X... # ...... ........
-   // 
-   //
-
    // if posn is four or above, then we have detected the start of an SCOMP QUERY string
    if (startOfSequence >= PAYLOAD_LENGTH_BYTES)
    {
@@ -1555,9 +1551,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       // well, it's the payload length. Now we need to covert this four character long
       // representation of of a sixteen bit number - into an actual sixteen bit number
       //
-      for (int i=0; i<4; i++)
+      for (int i = 0; i < 4; i++)
       {
-         payloadLengthString[i] = buffer[i+5];
+         payloadLengthString[i] = buffer[i + 5];
       }
 
       //
@@ -1568,8 +1564,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       uint16_t payloadLength = (uint16_t)strtol(payloadLengthString, &ptr, 16);
 
       // But what is the total length of the message (i.e. how many chars to we need?)
-      int totalLength = payloadLength + CRC32_CHARACTERS + 10;
-
+      uint16_t totalLength = payloadLength + CRC32_CHARACTERS + 10;
 
       READER_DEBUGPRINT.print("payload string: ");
       READER_DEBUGPRINT.println(payloadLengthString);
@@ -1580,9 +1575,8 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       READER_DEBUGPRINT.print("receive buffer length: ");
       READER_DEBUGPRINT.println(_receiveBuffer.getLength());
 
-
       // OK, have all the required character been received yet?
-      if (totalLength <= _receiveBuffer.getLength())
+      if (totalLength <= (uint16_t)_receiveBuffer.getLength())
       {
          // clear the buffer contents again..
          memset(buffer, 0, _receiveBuffer.getLength());
@@ -1592,6 +1586,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          {
             buffer[index++] = (char)_receiveBuffer.get(i);
          }
+
+
+         
 
          READER_DEBUGPRINT.print("< ");
          READER_DEBUGPRINT.println(buffer);
