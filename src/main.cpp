@@ -1487,14 +1487,15 @@ void FlashLED(int onPeriod, int offPeriod)
 
 ///
 /// @brief EVENT on data written to SPP
-/// @brief Message is of format as shown below. We're searching for chars 'Q' and '#'
+/// @brief Message is of format as shown below. Initially we search for chars 'Q' and '#'
 /// @brief
 /// @brief     ->    nnnn Q pppp # n....n cccccccc
 /// @brief
 /// @brief When we've detected the sequence, we then need to move back FOUR characters
-/// @brief so that we're pointing to the character as shown below as an 'X':
+/// @brief so that we're pointing to the characters 'PPPP' - which represent the complete
+/// @brief length of the payload as a four-character long HEX string
 /// @brief
-/// @brief     ->    .... Q X... # ...... ........
+/// @brief     ->    .... Q PPPP # nnnnnn cccccccc
 /// @param central
 /// @param characteristic
 ///
@@ -1566,20 +1567,24 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       // But what is the total length of the message (i.e. how many chars to we need?)
       uint16_t totalLength = payloadLength + CRC32_CHARACTERS + 10;
 
-      READER_DEBUGPRINT.print("payload string: ");
-      READER_DEBUGPRINT.println(payloadLengthString);
-      READER_DEBUGPRINT.print("length of command payload: ");
-      READER_DEBUGPRINT.println(payloadLength);
-      READER_DEBUGPRINT.print("total length of payload (with CRC): ");
-      READER_DEBUGPRINT.println(totalLength);
-      READER_DEBUGPRINT.print("receive buffer length: ");
-      READER_DEBUGPRINT.println(_receiveBuffer.getLength());
+      // we need to extract the core payload MINUS the CRC32
+      char *queryPayload = new char[payloadLength + 11];
+
+      // READER_DEBUGPRINT.print("payload string: ");
+      // READER_DEBUGPRINT.println(payloadLengthString);
+      // READER_DEBUGPRINT.print("length of command payload: ");
+      // READER_DEBUGPRINT.println(payloadLength);
+      // READER_DEBUGPRINT.print("total length of payload (with CRC): ");
+      // READER_DEBUGPRINT.println(totalLength);
+      // READER_DEBUGPRINT.print("receive buffer length: ");
+      // READER_DEBUGPRINT.println(_receiveBuffer.getLength());
 
       // OK, have all the required character been received yet?
       if (totalLength <= (uint16_t)_receiveBuffer.getLength())
       {
          // clear the buffer contents again..
          memset(buffer, 0, _receiveBuffer.getLength());
+         memset(queryPayload, 0, payloadLength + 10);
 
          index = 0;
          for (int i = startOfSequence; i < (int)((payloadLength + 8 + CRC32_CHARACTERS) - (startOfSequence)); i++)
@@ -1587,11 +1592,17 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             buffer[index++] = (char)_receiveBuffer.get(i);
          }
 
+         for (int i = 0; i < payloadLength + 10; i++)
+         {
+            queryPayload[i] = buffer[i];
+         }
 
-         
+         queryPayload[payloadLength + 10] = 0x00;
 
-         READER_DEBUGPRINT.print("< ");
+         READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(buffer);
+         READER_DEBUGPRINT.print(">> ");
+         READER_DEBUGPRINT.println(queryPayload);
 
          _receiveBuffer.clear();
       }
@@ -1600,6 +1611,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.println("... INVALID ...");
       }
 
+      delete[] queryPayload;
       delete[] payloadLengthString;
       delete[] buffer;
    }
