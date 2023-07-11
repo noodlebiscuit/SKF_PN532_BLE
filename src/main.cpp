@@ -108,6 +108,9 @@ void SetupBLE()
 
    // register the current battery voltage
    PublishBattery();
+
+   // clear the BLE serial receive buffer
+   _SerialBuffer.clear();
 }
 
 ///
@@ -1484,10 +1487,10 @@ void FlashLED(int onPeriod, int offPeriod)
 // ************************************************************************************************
 
 #define PAYLOAD_LENGTH_BYTES 4
-#define SERIAL_BUFFER_BYTESX 128
+//#define SERIAL_BUFFER_BYTESX 128
 
-uint8_t SerialReceiveBuffer[SERIAL_BUFFER_BYTESX];
-int BufferIndexPosition = 0;
+// uint8_t SerialReceiveBuffer[SERIAL_BUFFER_BYTESX];
+// int BufferIndexPosition = 0;
 
 ///
 /// @brief EVENT on data written to SPP
@@ -1506,19 +1509,18 @@ int BufferIndexPosition = 0;
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
    //
-   // before we do anything, we need to confirm that we're not looking at a potential buffer 
+   // before we do anything, we need to confirm that we're not looking at a potential buffer
    // overrun here! If we are, then we need to flush the serial receive buffer
    //
-   if ((characteristic.valueLength() + BufferIndexPosition) > SERIAL_BUFFER_BYTESX)
+   if ((characteristic.valueLength() + _SerialBuffer.getLength()) > _SerialBuffer.getSize())
    {
-      memset(SerialReceiveBuffer, 0, SERIAL_BUFFER_BYTESX);
-      BufferIndexPosition = 0;
+      _SerialBuffer.clear();
    }
 
    // that done, we should now be safe to load the received BLE data into the receive buffer
    for (int i = 0; i < characteristic.valueLength(); i++)
    {
-      SerialReceiveBuffer[BufferIndexPosition++] = characteristic.value()[i];
+      _SerialBuffer.add(characteristic.value()[i]);
    }
 
    //
@@ -1526,11 +1528,11 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    // character sequence nnnnQpppp#, where nn and pp are two character HEX strings
    //
    int startOfSequence = 0;
-   if (BufferIndexPosition > QUERY_HEADER_BYTES)
+   if (_SerialBuffer.getLength() > QUERY_HEADER_BYTES)
    {
-      for (int i = 0; i < (BufferIndexPosition - 5); i++)
+      for (int i = 0; i < (_SerialBuffer.getLength() - 5); i++)
       {
-         if ((char)SerialReceiveBuffer[i] == 'Q' & (char)SerialReceiveBuffer[i + 5] == '#')
+         if ((char)_SerialBuffer.get(i) == 'Q' & (char)_SerialBuffer.get(i + 5) == '#')
          {
             startOfSequence = i;
             break;
@@ -1552,9 +1554,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 
       // OK, lock and load, and let's see what's in the barrel!
       int index = 0;
-      for (int i = startOfSequence; i < (int)(BufferIndexPosition - startOfSequence); i++)
+      for (int i = startOfSequence; i < (int)(_SerialBuffer.getLength() - startOfSequence); i++)
       {
-         buffer[index++] = (char)SerialReceiveBuffer[i];
+         buffer[index++] = (char)_SerialBuffer.get(i);
       }
 
       READER_DEBUGPRINT.print("RAW BUFFER: ");
@@ -1596,10 +1598,10 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       READER_DEBUGPRINT.print("total length of payload (with CRC): ");
       READER_DEBUGPRINT.println(totalLength);
       READER_DEBUGPRINT.print("receive buffer length: ");
-      READER_DEBUGPRINT.println(BufferIndexPosition);
+      READER_DEBUGPRINT.println(_SerialBuffer.getLength());
 
       // OK, have all the required character been received yet?
-      if (totalLength == BufferIndexPosition)
+      if (totalLength == _SerialBuffer.getLength())
       {
          // clear the buffer contents again..
          memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
@@ -1611,7 +1613,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          index = 0;
          for (int i = startOfSequence; i < (int)(totalLength - (startOfSequence)); i++)
          {
-            buffer[index++] = SerialReceiveBuffer[i];
+            buffer[index++] = _SerialBuffer.get(i);
          }
 
          // now extract ONLY the HEADER and the QUERY (we use this to calculate the CRC32)
@@ -1663,7 +1665,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(queryCRC32);
 
-         BufferIndexPosition = 0;
+         _SerialBuffer.clear();
       }
       else
       {
