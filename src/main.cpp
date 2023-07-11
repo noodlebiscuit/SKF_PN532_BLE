@@ -59,13 +59,10 @@ CRC32 crc;
 
 /// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
 char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
-#pragma endregion
 
+/// @brief managed serial receive buffer (non-rotating!)
 SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
-size_t _numAvailableLines;
-unsigned long long _lastFlushTime;
-size_t _transmitBufferLength;
-uint8_t _transmitBuffer[BLE_ATTRIBUTE_MAX_VALUE_LENGTH];
+#pragma endregion
 
 //------------------------------------------------------------------------------------------------
 
@@ -1576,10 +1573,12 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       uint16_t payloadLength = (uint16_t)strtol(payloadLengthString, &ptr, 16);
 
       // But what is the total length of the message (i.e. how many chars to we need?)
-      uint16_t totalLength = payloadLength + CRC32_CHARACTERS + QUERY_HEADER_BYTES;
+      uint16_t totalPayloadLength = payloadLength + CRC32_CHARACTERS + QUERY_HEADER_BYTES;
 
       // we need to extract the core payloads - one with, and one without the CRC32
       char *queryPayload = new char[payloadLength + QUERY_HEADER_BYTES + 1];
+      char *queryID = new char[QUERY_OFFSET_BYTES + 1];
+      char *queryBody = new char[payloadLength + 1];
       char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
       char *valueCRC32 = new char[3];
 
@@ -1595,34 +1594,50 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 #endif
 
       // OK, have all the required character been received yet?
-      if (totalLength == _SerialBuffer.getLength())
+      if (totalPayloadLength == _SerialBuffer.getLength())
       {
-// we're done
-//#ifdef SERIAL_RECEIVE_DEBUG
+         // we're done
+         // #ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.println(".");
-//#endif
+         // #endif
 
          // clear the buffer contents again..
          memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
          memset(queryPayload, 0, payloadLength + QUERY_HEADER_BYTES + 1);
          memset(queryCRC32, 0, CRC32_CHARACTERS + 1);
          memset(valueCRC32, 0, 3);
+         memset(queryID, 0, QUERY_OFFSET_BYTES + 1);
+         memset(queryBody, 0, QUERY_OFFSET_BYTES + 1);
 
          // extract the complete complete SCOMP QUERY payload (with CRC32)
          index = 0;
-         for (int i = startOfSequence; i < (int)(totalLength - (startOfSequence)); i++)
+         for (int i = startOfSequence; i < (int)(totalPayloadLength - (startOfSequence)); i++)
          {
             buffer[index++] = _SerialBuffer.get(i);
          }
 
-         // now extract ONLY the HEADER and the QUERY (we use this to calculate the CRC32)
+         // extract ONLY the HEADER and the QUERY (we use this to calculate the CRC32)
          for (int i = 0; i < payloadLength + QUERY_HEADER_BYTES; i++)
          {
             queryPayload[i] = buffer[i];
          }
          queryPayload[payloadLength + QUERY_HEADER_BYTES] = (char)0x00;
 
-         // next we extract the embedded CRC32 value from the received SCOMP QUERY
+         // extract only the payload body
+         for (int i = 0; i < payloadLength; i++)
+         {
+            queryBody[i] = buffer[i + QUERY_HEADER_BYTES];
+         }
+         queryBody[payloadLength] = (char)0x00;
+
+         // extract only the query identifier
+         for (int i = 0; i < QUERY_OFFSET_BYTES; i++)
+         {
+            queryID[i] = buffer[i];
+         }
+         queryID[QUERY_OFFSET_BYTES] = (char)0x00;
+
+         // extract the embedded CRC32 value from the received SCOMP QUERY
          for (int i = 0; i < CRC32_CHARACTERS; i++)
          {
             queryCRC32[i] = buffer[i + payloadLength + QUERY_HEADER_BYTES];
@@ -1648,32 +1663,35 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
-//#ifdef SERIAL_RECEIVE_DEBUG
-         if (crcIsConfirmed)
-         {
-            READER_DEBUGPRINT.println("CRC IS VALID!");
-         }
-         else
-         {
-            READER_DEBUGPRINT.println("ERROR: INVALID CRC");
-         }
-
-         READER_DEBUGPRINT.print(">> ");
-         READER_DEBUGPRINT.println(buffer);
-         READER_DEBUGPRINT.print(">> ");
-         READER_DEBUGPRINT.println(queryPayload);
-         READER_DEBUGPRINT.print(">> ");
+         // READER_DEBUGPRINT.print(">> received payload:   ");
+         // READER_DEBUGPRINT.println(buffer);
+         // READER_DEBUGPRINT.print(">> with CRC32 removed: ");
+         // READER_DEBUGPRINT.println(queryPayload);
+         READER_DEBUGPRINT.print(">> query identifier:   ");
+         READER_DEBUGPRINT.println(queryID);
+         READER_DEBUGPRINT.print(">> query body:         ");
+         READER_DEBUGPRINT.println(queryBody);
+         READER_DEBUGPRINT.print(">> CRC32:              ");
          READER_DEBUGPRINT.println(queryCRC32);
-//#endif
+
+         // #ifdef SERIAL_RECEIVE_DEBUG
+         if (crcIsConfirmed)
+            READER_DEBUGPRINT.println(">> CRC32:              VALID");
+         else
+            READER_DEBUGPRINT.println(">> CRC32:              INVALID");
+
+         // #endif
          _SerialBuffer.clear();
       }
       else
       {
-//#ifdef SERIAL_RECEIVE_DEBUG
+         // #ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(".");
-//#endif
+         // #endif
       }
 
+      delete[] queryID;
+      delete[] queryBody;
       delete[] valueCRC32;
       delete[] queryCRC32;
       delete[] queryPayload;
