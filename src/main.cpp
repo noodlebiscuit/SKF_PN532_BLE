@@ -1340,6 +1340,7 @@ void ResetReader()
    _readerBusy = false;
    _blockReader = false;
    _command = ReadCardContinuous;
+   _SerialBuffer.clear();
 
    if (ndef_message->getRecordCount() > 0)
    {
@@ -1582,18 +1583,25 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
       char *valueCRC32 = new char[3];
 
-      // READER_DEBUGPRINT.print("payload string: ");
-      // READER_DEBUGPRINT.println(payloadLengthString);
-      // READER_DEBUGPRINT.print("length of command payload: ");
-      // READER_DEBUGPRINT.println(payloadLength);
-      // READER_DEBUGPRINT.print("total length of payload (with CRC): ");
-      // READER_DEBUGPRINT.println(totalLength);
-      // READER_DEBUGPRINT.print("receive buffer length: ");
-      // READER_DEBUGPRINT.println(_SerialBuffer.getLength());
+#ifdef SERIAL_RECEIVE_DEBUG
+      READER_DEBUGPRINT.print("payload string: ");
+      READER_DEBUGPRINT.println(payloadLengthString);
+      READER_DEBUGPRINT.print("length of command payload: ");
+      READER_DEBUGPRINT.println(payloadLength);
+      READER_DEBUGPRINT.print("total length of payload (with CRC): ");
+      READER_DEBUGPRINT.println(totalLength);
+      READER_DEBUGPRINT.print("receive buffer length: ");
+      READER_DEBUGPRINT.println(_SerialBuffer.getLength());
+#endif
 
       // OK, have all the required character been received yet?
       if (totalLength == _SerialBuffer.getLength())
       {
+// we're done
+//#ifdef SERIAL_RECEIVE_DEBUG
+         READER_DEBUGPRINT.println(".");
+//#endif
+
          // clear the buffer contents again..
          memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
          memset(queryPayload, 0, payloadLength + QUERY_HEADER_BYTES + 1);
@@ -1640,6 +1648,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
+//#ifdef SERIAL_RECEIVE_DEBUG
          if (crcIsConfirmed)
          {
             READER_DEBUGPRINT.println("CRC IS VALID!");
@@ -1655,8 +1664,14 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.println(queryPayload);
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(queryCRC32);
-
+//#endif
          _SerialBuffer.clear();
+      }
+      else
+      {
+//#ifdef SERIAL_RECEIVE_DEBUG
+         READER_DEBUGPRINT.print(".");
+//#endif
       }
 
       delete[] valueCRC32;
