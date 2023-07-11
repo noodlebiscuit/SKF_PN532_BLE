@@ -1341,7 +1341,7 @@ void ResetReader()
    _blockReader = false;
    _command = ReadCardContinuous;
    _SerialBuffer.clear();
-   messageIdentifier = 0x0000;
+   _messageIdentifier = 0x0000;
 
    if (ndef_message->getRecordCount() > 0)
    {
