@@ -61,7 +61,7 @@ CRC32 crc;
 char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 #pragma endregion
 
-CyclicByteBuffer<RECEIVE_BUFFER_LENGTH> _receiveBuffer;
+SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
 size_t _numAvailableLines;
 unsigned long long _lastFlushTime;
 size_t _transmitBufferLength;
@@ -1484,6 +1484,10 @@ void FlashLED(int onPeriod, int offPeriod)
 // ************************************************************************************************
 
 #define PAYLOAD_LENGTH_BYTES 4
+#define SERIAL_BUFFER_BYTESX 128
+
+uint8_t SerialReceiveBuffer[SERIAL_BUFFER_BYTESX];
+int BufferIndexPosition = 0;
 
 ///
 /// @brief EVENT on data written to SPP
@@ -1501,10 +1505,20 @@ void FlashLED(int onPeriod, int offPeriod)
 ///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
-   // first of all, we load the received bluetooth data into the receive buffer
-   for (size_t i = 0; i < min(characteristic.valueLength(), sizeof(_receiveBuffer)); i++)
+   //
+   // before we do anything, we need to confirm that we're not looking at a potential buffer 
+   // overrun here! If we are, then we need to flush the serial receive buffer
+   //
+   if ((characteristic.valueLength() + BufferIndexPosition) > SERIAL_BUFFER_BYTESX)
    {
-      _receiveBuffer.add(characteristic.value()[i]);
+      memset(SerialReceiveBuffer, 0, SERIAL_BUFFER_BYTESX);
+      BufferIndexPosition = 0;
+   }
+
+   // that done, we should now be safe to load the received BLE data into the receive buffer
+   for (int i = 0; i < characteristic.valueLength(); i++)
+   {
+      SerialReceiveBuffer[BufferIndexPosition++] = characteristic.value()[i];
    }
 
    //
@@ -1512,11 +1526,11 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    // character sequence nnnnQpppp#, where nn and pp are two character HEX strings
    //
    int startOfSequence = 0;
-   if (_receiveBuffer.getLength() > QUERY_HEADER_BYTES)
+   if (BufferIndexPosition > QUERY_HEADER_BYTES)
    {
-      for (int i = 0; i < (int)(_receiveBuffer.getLength() - 5); i++)
+      for (int i = 0; i < (BufferIndexPosition - 5); i++)
       {
-         if ((char)(_receiveBuffer.get(i) == 'Q') & (char)(_receiveBuffer.get(i + 5) == '#'))
+         if ((char)SerialReceiveBuffer[i] == 'Q' & (char)SerialReceiveBuffer[i + 5] == '#')
          {
             startOfSequence = i;
             break;
@@ -1538,14 +1552,17 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 
       // OK, lock and load, and let's see what's in the barrel!
       int index = 0;
-      for (int i = startOfSequence; i < (int)(_receiveBuffer.getLength() - startOfSequence); i++)
+      for (int i = startOfSequence; i < (int)(BufferIndexPosition - startOfSequence); i++)
       {
-         buffer[index++] = (char)_receiveBuffer.get(i);
+         buffer[index++] = (char)SerialReceiveBuffer[i];
       }
 
+      READER_DEBUGPRINT.print("RAW BUFFER: ");
+      READER_DEBUGPRINT.println(buffer);
+
       // get the total payload length
-      char *payloadLengthString = new char[4];
-      memset(payloadLengthString, 0, 4);
+      char *payloadLengthString = new char[5];
+      memset(payloadLengthString, 0, 5);
 
       //
       // well, it's the payload length. Now we need to covert this four character long
@@ -1555,6 +1572,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       {
          payloadLengthString[i] = buffer[i + 5];
       }
+      payloadLengthString[4] = '\n';
 
       //
       // now we need to convert the eight character long length string into a LONG value
@@ -1571,17 +1589,17 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
       char *valueCRC32 = new char[3];
 
-      // READER_DEBUGPRINT.print("payload string: ");
-      // READER_DEBUGPRINT.println(payloadLengthString);
-      // READER_DEBUGPRINT.print("length of command payload: ");
-      // READER_DEBUGPRINT.println(payloadLength);
-      // READER_DEBUGPRINT.print("total length of payload (with CRC): ");
-      // READER_DEBUGPRINT.println(totalLength);
-      // READER_DEBUGPRINT.print("receive buffer length: ");
-      // READER_DEBUGPRINT.println(_receiveBuffer.getLength());
+      READER_DEBUGPRINT.print("payload string: ");
+      READER_DEBUGPRINT.println(payloadLengthString);
+      READER_DEBUGPRINT.print("length of command payload: ");
+      READER_DEBUGPRINT.println(payloadLength);
+      READER_DEBUGPRINT.print("total length of payload (with CRC): ");
+      READER_DEBUGPRINT.println(totalLength);
+      READER_DEBUGPRINT.print("receive buffer length: ");
+      READER_DEBUGPRINT.println(BufferIndexPosition);
 
       // OK, have all the required character been received yet?
-      if (totalLength >= (uint16_t)_receiveBuffer.getLength())
+      if (totalLength == BufferIndexPosition)
       {
          // clear the buffer contents again..
          memset(buffer, 0, RECEIVE_BUFFER_LENGTH);
@@ -1593,7 +1611,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          index = 0;
          for (int i = startOfSequence; i < (int)(totalLength - (startOfSequence)); i++)
          {
-            buffer[index++] = (char)_receiveBuffer.get(i);
+            buffer[index++] = SerialReceiveBuffer[i];
          }
 
          // now extract ONLY the HEADER and the QUERY (we use this to calculate the CRC32)
@@ -1645,7 +1663,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.print(">> ");
          READER_DEBUGPRINT.println(queryCRC32);
 
-         _receiveBuffer.clear();
+         BufferIndexPosition = 0;
       }
       else
       {
@@ -1686,74 +1704,74 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 // ************************************************************************************************
 // ************************************************************************************************
 
-///
-/// @brief EVENT raised on data being received on the NORDIC SPP UART
-/// @param data
-/// @param size
-///
-void onReceive(const uint8_t *data, size_t size)
-{
-   for (size_t i = 0; i < min(size, sizeof(_receiveBuffer)); i++)
-   {
-      _receiveBuffer.add(data[i]);
-      if (data[i] == '\n')
-      {
-         _numAvailableLines++;
-      }
-   }
-}
+// ///
+// /// @brief EVENT raised on data being received on the NORDIC SPP UART
+// /// @param data
+// /// @param size
+// ///
+// void onReceive(const uint8_t *data, size_t size)
+// {
+//    for (size_t i = 0; i < min(size, sizeof(_SerialBuffer)); i++)
+//    {
+//       _SerialBuffer.add(data[i]);
+//       if (data[i] == '\n')
+//       {
+//          _numAvailableLines++;
+//       }
+//    }
+// }
 
-///
-/// @brief How many bytes are available for use by the NORDIC SPP receiver?
-/// @return byte count
-///
-size_t AvailableSPP()
-{
-   _receiveBuffer.getLength();
-}
+// ///
+// /// @brief How many bytes are available for use by the NORDIC SPP receiver?
+// /// @return byte count
+// ///
+// size_t AvailableSPP()
+// {
+//    _SerialBuffer.getLength();
+// }
 
-///
-/// @brief
-/// @return
-///
-int ReadSPP()
-{
-   int result = _receiveBuffer.pop();
-   if (result == (int)'\n')
-   {
-      _numAvailableLines--;
-   }
-   return result;
-}
+// ///
+// /// @brief
+// /// @return
+// ///
+// int ReadSPP()
+// {
+//    int result = _SerialBuffer.pop();
+//    if (result == (int)'\n')
+//    {
+//       _numAvailableLines--;
+//    }
+//    return result;
+// }
 
-///
-/// @brief
-/// @param buffer
-/// @param bufferSize
-/// @return
-///
-size_t ReadLineSPP(char *buffer, size_t bufferSize)
-{
-   if (AvailableLinesSPP() == 0)
-   {
-      buffer[0] = '\0';
-      return 0;
-   }
-   size_t i = 0;
-   for (; i < bufferSize - 1; i++)
-   {
-      int chr = ReadSPP();
-      if (chr == -1 || chr == '\n')
-      {
-         break;
-      }
-      else
-      {
-         buffer[i] = chr;
-      }
-   }
-   buffer[i] = '\0';
-   return i;
-}
+// ///
+// /// @brief
+// /// @param buffer
+// /// @param bufferSize
+// /// @return
+// ///
+// size_t ReadLineSPP(char *buffer, size_t bufferSize)
+// {
+//    if (AvailableLinesSPP() == 0)
+//    {
+//       buffer[0] = '\0';
+//       return 0;
+//    }
+//    size_t i = 0;
+//    for (; i < bufferSize - 1; i++)
+//    {
+//       int chr = ReadSPP();
+//       if (chr == -1 || chr == '\n')
+//       {
+//          break;
+//       }
+//       else
+//       {
+//          buffer[i] = chr;
+//       }
+//    }
+//    buffer[i] = '\0';
+//    return i;
+// }
 
 //-------------------------------------------------------------------------------------------------

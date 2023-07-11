@@ -10,7 +10,7 @@
 #include <iomanip>
 #include "PN532/Adafruit_PN532.h"
 #include "NDEF/NDEF_Message.h"
-#include "CRC32/CyclicByteBuffer.h"
+#include "CRC32/SerialBuffer.h"
 #include "CRC32/CRC32.h"
 
 #pragma once
