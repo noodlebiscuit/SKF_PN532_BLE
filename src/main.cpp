@@ -1486,12 +1486,6 @@ void FlashLED(int onPeriod, int offPeriod)
 // ************************************************************************************************
 // ************************************************************************************************
 
-#define PAYLOAD_LENGTH_BYTES 4
-//#define SERIAL_BUFFER_BYTESX 128
-
-// uint8_t SerialReceiveBuffer[SERIAL_BUFFER_BYTESX];
-// int BufferIndexPosition = 0;
-
 ///
 /// @brief EVENT on data written to SPP
 /// @brief Message is of format as shown below. Initially we search for chars 'Q'  and  '#'
@@ -1541,10 +1535,10 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
    }
 
    // if posn is four or above, then we have detected the start of an SCOMP QUERY string
-   if (startOfSequence >= PAYLOAD_LENGTH_BYTES)
+   if (startOfSequence >= QUERY_OFFSET_BYTES)
    {
       // jump back to the start of the message (to include the request ID)
-      startOfSequence -= PAYLOAD_LENGTH_BYTES;
+      startOfSequence -= QUERY_OFFSET_BYTES;
 
       // we need a temporary buffer here
       char *buffer = new char[RECEIVE_BUFFER_LENGTH];
@@ -1558,9 +1552,6 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       {
          buffer[index++] = (char)_SerialBuffer.get(i);
       }
-
-      READER_DEBUGPRINT.print("RAW BUFFER: ");
-      READER_DEBUGPRINT.println(buffer);
 
       // get the total payload length
       char *payloadLengthString = new char[5];
@@ -1591,14 +1582,14 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       char *queryCRC32 = new char[CRC32_CHARACTERS + 1];
       char *valueCRC32 = new char[3];
 
-      READER_DEBUGPRINT.print("payload string: ");
-      READER_DEBUGPRINT.println(payloadLengthString);
-      READER_DEBUGPRINT.print("length of command payload: ");
-      READER_DEBUGPRINT.println(payloadLength);
-      READER_DEBUGPRINT.print("total length of payload (with CRC): ");
-      READER_DEBUGPRINT.println(totalLength);
-      READER_DEBUGPRINT.print("receive buffer length: ");
-      READER_DEBUGPRINT.println(_SerialBuffer.getLength());
+      // READER_DEBUGPRINT.print("payload string: ");
+      // READER_DEBUGPRINT.println(payloadLengthString);
+      // READER_DEBUGPRINT.print("length of command payload: ");
+      // READER_DEBUGPRINT.println(payloadLength);
+      // READER_DEBUGPRINT.print("total length of payload (with CRC): ");
+      // READER_DEBUGPRINT.println(totalLength);
+      // READER_DEBUGPRINT.print("receive buffer length: ");
+      // READER_DEBUGPRINT.println(_SerialBuffer.getLength());
 
       // OK, have all the required character been received yet?
       if (totalLength == _SerialBuffer.getLength())
@@ -1666,10 +1657,6 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          READER_DEBUGPRINT.println(queryCRC32);
 
          _SerialBuffer.clear();
-      }
-      else
-      {
-         READER_DEBUGPRINT.println("... INVALID ...");
       }
 
       delete[] valueCRC32;
