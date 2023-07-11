@@ -62,6 +62,9 @@ char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 
 /// @brief managed serial receive buffer (non-rotating!)
 SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
+
+/// @brief SCANNDY SCOMP message identifier
+uint16_t _messageIdentifier = 0x0000;
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -1338,6 +1341,7 @@ void ResetReader()
    _blockReader = false;
    _command = ReadCardContinuous;
    _SerialBuffer.clear();
+   messageIdentifier = 0x0000;
 
    if (ndef_message->getRecordCount() > 0)
    {
@@ -1630,12 +1634,13 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          }
          queryBody[payloadLength] = (char)0x00;
 
-         // extract only the query identifier
+         // extract only the query message identifier
          for (int i = 0; i < QUERY_OFFSET_BYTES; i++)
          {
             queryID[i] = buffer[i];
          }
          queryID[QUERY_OFFSET_BYTES] = (char)0x00;
+         _messageIdentifier = (uint16_t)strtol(queryID, &ptr, 16);
 
          // extract the embedded CRC32 value from the received SCOMP QUERY
          for (int i = 0; i < CRC32_CHARACTERS; i++)
@@ -1663,24 +1668,23 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
+         // #ifdef SERIAL_RECEIVE_DEBUG
          // READER_DEBUGPRINT.print(">> received payload:   ");
          // READER_DEBUGPRINT.println(buffer);
          // READER_DEBUGPRINT.print(">> with CRC32 removed: ");
          // READER_DEBUGPRINT.println(queryPayload);
          READER_DEBUGPRINT.print(">> query identifier:   ");
-         READER_DEBUGPRINT.println(queryID);
+         READER_DEBUGPRINT.println(_messageIdentifier);
          READER_DEBUGPRINT.print(">> query body:         ");
          READER_DEBUGPRINT.println(queryBody);
          READER_DEBUGPRINT.print(">> CRC32:              ");
          READER_DEBUGPRINT.println(queryCRC32);
-
-         // #ifdef SERIAL_RECEIVE_DEBUG
          if (crcIsConfirmed)
             READER_DEBUGPRINT.println(">> CRC32:              VALID");
          else
             READER_DEBUGPRINT.println(">> CRC32:              INVALID");
-
          // #endif
+
          _SerialBuffer.clear();
       }
       else
