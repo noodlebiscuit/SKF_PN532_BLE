@@ -349,6 +349,7 @@ void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
 
+void ProcessReceivedQueries();
 char *substring(char *, int, int);
 void insert_substring(char *, const char *, int);
 const char *HexStr(const uint8_t *, int);

@@ -65,6 +65,9 @@ SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
 
 /// @brief SCANNDY SCOMP message identifier
 uint16_t _messageIdentifier = 0x0000;
+
+/// @brief has the reader received an SCANNDY SCOMP query?
+volatile bool _queryReceived = false;
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -650,6 +653,7 @@ void loop(void)
             timerEvent = false;
             ConnectToReader();
             PublishBattery();
+            ProcessReceivedQueries();
          }
       }
    }
@@ -689,6 +693,38 @@ void PublishBattery()
          responsePayload[1] = (uint8_t)(batteryVoltage & 0x00ff);
          batteryCharacteristic.writeValue(responsePayload, 2);
          delete[] responsePayload;
+      }
+   }
+}
+
+///
+/// @brief Process any received query
+///
+void ProcessReceivedQueries()
+{
+   // if the reader is blocked, then bypass this method completely
+   if (!(_blockReader | _readerBusy))
+   {
+      if (_queryReceived & (_messageIdentifier > 0x000))
+      {
+         char *queryBody = new char[_SerialBuffer.getLength() + 1];
+
+         memset(queryBody, 0, _SerialBuffer.getLength() + 1);
+
+         for (size_t i = 0; i < _SerialBuffer.getLength(); i++)
+         {
+            queryBody[i] = _SerialBuffer.get(i);
+         }
+         queryBody[_SerialBuffer.getLength()] = 0x00;
+
+         READER_DEBUGPRINT.print("++++++++++++++: ");
+         READER_DEBUGPRINT.println(queryBody);
+
+         delete[] queryBody;
+
+         _queryReceived = false;
+         _messageIdentifier = 0x0000;
+         _SerialBuffer.clear();
       }
    }
 }
@@ -1342,6 +1378,7 @@ void ResetReader()
    _command = ReadCardContinuous;
    _SerialBuffer.clear();
    _messageIdentifier = 0x0000;
+   _queryReceived = false;
 
    if (ndef_message->getRecordCount() > 0)
    {
@@ -1504,6 +1541,9 @@ void FlashLED(int onPeriod, int offPeriod)
 ///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
+   // at this point we don't want the reader to keep checking for Tags
+   _blockReader = true;
+
    //
    // before we do anything, we need to confirm that we're not looking at a potential buffer
    // overrun here! If we are, then we need to flush the serial receive buffer
@@ -1685,7 +1725,19 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             READER_DEBUGPRINT.println(">> CRC32:              INVALID");
          // #endif
 
-         _SerialBuffer.clear();
+         if (crcIsConfirmed)
+         {
+            _queryReceived = true;
+            _SerialBuffer.clear();
+            for (size_t i = 0; i < payloadLength; i++)
+            {
+               _SerialBuffer.add(queryBody[i]);
+            }
+         }
+         else
+         {
+            _SerialBuffer.clear();
+         }
       }
       else
       {
@@ -1702,6 +1754,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       delete[] payloadLengthString;
       delete[] buffer;
       crc.reset();
+
+      // enable the reader again
+      _blockReader = false;
    }
 }
 
