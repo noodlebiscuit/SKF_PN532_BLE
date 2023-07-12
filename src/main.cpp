@@ -57,9 +57,6 @@ uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
 /// @brief  calculate the CRC value of any byte or character stream
 CRC32 crc;
 
-/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
-char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
-
 /// @brief managed serial receive buffer (non-rotating!)
 SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
 
@@ -68,6 +65,20 @@ uint16_t _messageIdentifier = 0x0000;
 
 /// @brief has the reader received an SCANNDY SCOMP query?
 volatile bool _queryReceived = false;
+
+/// @brief what command type was issued by the connected client?
+SCOMP_command _scomp_command = none;
+
+/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
+char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
+
+/// @brief create the default SCANNDY PROTOCOL header for returning an OK response
+char scomp_ok_response_header[] = "0000R0000#";
+
+/// @brief scomp query and response identifier
+char scomp_query_ID[] = "0000";
+char scomp_response_ok[] = "ok";
+char scomp_response_error[] = "error";
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -1347,6 +1358,7 @@ void ResetReader()
    _SerialBuffer.clear();
    _messageIdentifier = 0x0000;
    _queryReceived = false;
+   _scomp_command = none;
 
    if (ndef_message->getRecordCount() > 0)
    {
@@ -1646,6 +1658,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          for (int i = 0; i < QUERY_OFFSET_BYTES; i++)
          {
             queryID[i] = buffer[i];
+            scomp_query_ID[i] = buffer[i];
          }
          queryID[QUERY_OFFSET_BYTES] = (char)0x00;
          _messageIdentifier = (uint16_t)strtol(queryID, &ptr, 16);
@@ -1752,13 +1765,110 @@ void ProcessReceivedQueries()
          READER_DEBUGPRINT.print("++++++++++++++: ");
          READER_DEBUGPRINT.println(queryBody);
 
-         delete[] queryBody;
+         std::string search(queryBody);
+         for (size_t i = 0; i < SCOMP_COMMAND_COUNT; i++)
+         {
+            if (search.find(scompCommands[i]) == 0)
+            {
+               _scomp_command = SCOMP_command(i + 1);
+               break;
+            }
+         }
 
+         // extract the the command payload
+         if (_scomp_command != SCOMP_command::none)
+         {
+            size_t index = search.find(':');
+            char *subs = substring(queryBody, index + 2, _SerialBuffer.getLength() - (index + 1));
+            READER_DEBUGPRINT.println(subs);
+
+            PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
+         }
+
+         switch (_scomp_command)
+         {
+         case SCOMP_command::barscan:
+            READER_DEBUGPRINT.println("BAR SCAN");
+            break;
+         case SCOMP_command::beep:
+            READER_DEBUGPRINT.println("BEEP");
+            break;
+         case SCOMP_command::getcache:
+            READER_DEBUGPRINT.println("GET CACHE");
+            break;
+         case SCOMP_command::getversion:
+            READER_DEBUGPRINT.println("GET VERSION");
+            break;
+         case SCOMP_command::leds:
+            READER_DEBUGPRINT.println("LEDS");
+            break;
+         case SCOMP_command::none:
+            READER_DEBUGPRINT.println("NONE");
+            break;
+         case SCOMP_command::rfidscan:
+            READER_DEBUGPRINT.println("RFID SCAN");
+            break;
+         case SCOMP_command::rfidwrite:
+            READER_DEBUGPRINT.println("RFID WRITE");
+            break;
+         case SCOMP_command::vibrate:
+            READER_DEBUGPRINT.println("VIBRATE");
+            break;
+         }
+
+         delete[] queryBody;
          _queryReceived = false;
          _messageIdentifier = 0x0000;
          _SerialBuffer.clear();
       }
    }
+}
+
+///
+/// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @param message_length raw NDEF message payload
+/// @param headerdata NDEF meassage header with UUID
+///
+void PublishResponseToBluetooth(char *pagedata, size_t message_length)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // insert the message identified
+   for (int i = 0; i < QUERY_OFFSET_BYTES; i++)
+   {
+      scomp_ok_response_header[i] = scomp_query_ID[i];
+   }
+
+   // set the SCOMP PROTOCOL total TAG payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((message_length & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(message_length & 0x00ff);
+
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_ok_response_header[i + 5] = payloadLength[i];
+   }
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(scomp_ok_response_header, false);
+   crc.update(scomp_ok_response_header, RESPONSE_HEADER_BYTES);
+   delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // PUBLISH THE PAYLOAD MESSAGE TO BLUETOOTH
+   txChar.writeValue(pagedata, false);
+   crc.update(pagedata, message_length);
+   delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // publish the final CRC as an array of bytes
+   crc.finalizeAsArray(EOR);
+   const char *crcValue = HexStr(EOR, FOOTER_BYTES);
+   txChar.writeValue(crcValue, false);
+   crc.reset();
+
+   // release the blocker
+   _readerBusy = false;
 }
 
 // ************************************************************************************************

@@ -223,6 +223,7 @@ uint8_t RESEND_FAILED_PAYLOAD[OPCODE_BYTES] = {0x00, 0x0a};
 
 #define HEADER_BYTES 19           // how many bytes make up the complete SCOMP PROTOCOL header
 #define QUERY_HEADER_BYTES 10     // how many bytes in a QUERY payload form the SCOMP PROTOCOL header
+#define RESPONSE_HEADER_BYTES 10  // how many bytes in a RESPONSE payload form the SCOMP PROTOCOL header
 #define RFID_RESPONSE_BYTES 9     // how many bytes in the SCOMP RFID response data header
 #define FOOTER_BYTES 4            // how many bytes make up the CRC32 block
 #define LENGTH_BYTES 2            // how many bytes make up the CRC32 block
@@ -292,6 +293,46 @@ enum NTAG : uint8_t
 //------------------------------------------------------------------------------------------------
 
 ///
+/// @brief  Describes each of the commands that this reader supports
+///
+enum SCOMP_command : uint8_t
+{
+    none = 0x00,
+    barscan = 0x01,
+    beep = 0x02,
+    getcache = 0x03,
+    getversion = 0x04,
+    leds = 0x05,
+    rfidscan = 0x06,
+    rfidwrite = 0x07,
+    vibrate = 0x08
+};
+
+const size_t SCOMP_COMMAND_COUNT = 8;
+const char SCOMP_GET_VERSION[] = "getversion:";
+const char SCOMP_BEEP[] = "beep:";
+const char SCOMP_VIBRATE[] = "vibrate:";
+const char SCOMP_LEDS[] = "leds:";
+const char SCOMP_BAR_SCAN[] = "barscan:";
+const char SCOMP_RFID_SCAN[] = "rfidscan:";
+const char SCOMP_RFID_WRITE[] = "rfidwrite:";
+const char SCOMP_GET_CACHE[] = "getcache:";
+
+///
+/// @brief array of command strings
+///
+const std::string scompCommands[SCOMP_COMMAND_COUNT] = {SCOMP_GET_VERSION,
+                                                        SCOMP_BEEP,
+                                                        SCOMP_VIBRATE,
+                                                        SCOMP_LEDS,
+                                                        SCOMP_BAR_SCAN,
+                                                        SCOMP_RFID_SCAN,
+                                                        SCOMP_RFID_WRITE,
+                                                        SCOMP_GET_CACHE};
+
+//------------------------------------------------------------------------------------------------
+
+///
 /// @brief  MBED* control the BLE connected pin
 ///
 DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
@@ -301,16 +342,8 @@ DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 #pragma region METHOD PROTOTYPES
 bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
-// int PeekSPP();
-// int ReadSPP();
 NTAG GetCardType(uint8_t *);
 PN532_command GetCommandType(uint8_t *);
-// size_t AvailableLinesSPP();
-// size_t AvailableSPP();
-// size_t PeekLineSPP(char *buffer, size_t);
-// size_t PrintlnSPP(const char *);
-// size_t PrintSPP(const char *);
-// size_t ReadLineSPP(char *, size_t);
 size_t WriteToSPP(uint8_t);
 static void onBLEWritten(BLEDevice, BLECharacteristic);
 uint16_t GetTotalCardMemory(NTAG);
@@ -321,27 +354,22 @@ void AddDataServiceBLE();
 void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
-// void AddNordicUartServiceBLE();
 void AtTime(void);
-// void calculateCRC(bool, byte);
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();
-// void EndSPP();
 void ExecuteReaderCommands(uint8_t *, uint8_t *);
 void FlashLED(int, int);
-// void FlushSPP();
 void GetCachedRecordCount(uint8_t &);
 void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
-// void onReceive(const uint8_t *data, size_t size);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
-// void PollSPP();
 void ProcessControlMessage(byte *, int);
 void PublishBattery();
 void PublishHardwareDetails();
 void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(uint8_t *);
+void PublishResponseToBluetooth(char *, size_t);
 void PublishWriteFeedback(byte, byte);
 void ResetReader();
 void SetupBLE();
@@ -353,7 +381,6 @@ void ProcessReceivedQueries();
 char *substring(char *, int, int);
 void insert_substring(char *, const char *, int);
 const char *HexStr(const uint8_t *, int);
-
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
