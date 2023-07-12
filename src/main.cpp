@@ -16,74 +16,28 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
+ * 
  * Description: main.cpp
- * Main NFC reader for the Nordic NRF-52840 Microcontroller
+ * =====================
+ * 
+ * The software allows you to emulate the functionality of a FEIG ECCO+ BLE NearField reader
+ * using an ARDUINO NANO 33 BLE (with a Nordic NRF-52840 Microcontroller) as well as a PN532
+ * NFC reader board from either SUNFOUNDER or ADA FRUIT.
+ * 
+ * The protocol being used is the proprietary SCANNDY SComP by PANMOBIL (FEIG)
+ * 
+ * No source code from either FEIG or PANMOBIL is contained in this firmware, and it is provided
+ * purely to allow engineers who are developing for the ECCO+, to be able to debug Bluetooth data
+ * at a VERY low level. It is ABSOLUTELY NOT intended for use in ANY commercial application! 
+ * 
+ * The author CANNOT guarantee that everything here is correct, and FEIG has no involvement with
+ * the project at ANY level. 
+ * 
+ * July 2023
  *
  ***************************************************************************************************/
 
 #include "main.h"
-
-//------------------------------------------------------------------------------------------------
-
-#pragma region PRIVATE MEMBERS
-/// @brief MBED RTOS timer
-Ticker timer;
-volatile bool timerEvent = false;
-
-/// @brief  current time (for TIMEOUT management)
-unsigned long currentTime = 0;
-
-/// @brief  what is the reader required to do?
-PN532_command _command = ReadCardContinuous;
-
-/// @brief  block access to the reader hardware?
-volatile bool _blockReader = false;
-
-/// @brief  when set true, we need to block all other I/O activites
-volatile bool _readerBusy = false;
-
-/// @brief  references the UID from the TAG to block multiple reads
-uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-
-/// @brief  create a new NDEF message
-NDEF_Message *ndef_message = new NDEF_Message();
-
-/// @brief  enable TIMEOUTS (for WRITE or ONE SHOT)?
-volatile bool _enableTimeouts = false;
-
-/// @brief  when incremented to a specified value, publish the current battery level
-uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
-
-/// @brief  calculate the CRC value of any byte or character stream
-CRC32 crc;
-
-/// @brief managed serial receive buffer (non-rotating!)
-SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
-
-/// @brief SCANNDY SCOMP message identifier as a 16 bit unsigned integer
-uint16_t _messageIdentifier = 0x0000;
-
-/// @brief has the reader received an SCANNDY SCOMP query?
-volatile bool _queryReceived = false;
-
-/// @brief what command type was issued by the connected client?
-SCOMP_command _scomp_command = none;
-
-/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
-char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
-
-/// @brief create the default SCANNDY PROTOCOL header for returning an OK response
-char scomp_ok_response_header[] = "0000R0000#";
-
-/// @brief scomp query and response message identifier represented as a four character long string
-char scomp_query_ID[] = "0000";
-
-/// @brief scomp default response to a successfully received and processed query
-char scomp_response_ok[] = "ok";
-
-/// @brief scomp default response to a invalid processed query (E.g. wrong CRC32 value)
-char scomp_response_error[] = "error";
-#pragma endregion
 
 //------------------------------------------------------------------------------------------------
 
@@ -442,6 +396,7 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
 
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @brief DEPRECATED
 /// @param responsePayload raw NDEF message payload
 ///
 void PublishResponseToBluetooth(uint8_t *responsePayload)
@@ -1362,6 +1317,7 @@ void ResetReader()
    _SerialBuffer.clear();
    _messageIdentifier = 0x0000;
    _queryReceived = false;
+   _invalidQueryReceived = false;
    _scomp_command = none;
 
    if (ndef_message->getRecordCount() > 0)
@@ -1697,7 +1653,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
-//#ifdef SERIAL_RECEIVE_DEBUG
+         // #ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(">> ID: [");
          READER_DEBUGPRINT.print(_messageIdentifier);
          READER_DEBUGPRINT.print("],   query body: [");
@@ -1708,7 +1664,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             READER_DEBUGPRINT.println(" - VALID]");
          else
             READER_DEBUGPRINT.println(" - INVALID]");
-//#endif
+         // #endif
 
          if (crcIsConfirmed)
          {
@@ -1721,14 +1677,16 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
          }
          else
          {
+            _invalidQueryReceived = true;
+            _messageIdentifier = 0x0000;
             _SerialBuffer.clear();
          }
       }
       else
       {
-#ifdef SERIAL_RECEIVE_DEBUG
+//#ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(".");
-#endif
+//#endif
       }
 
       delete[] queryID;
@@ -1754,7 +1712,18 @@ void ProcessReceivedQueries()
    // if the reader is blocked, then bypass this method completely
    if (!(_blockReader | _readerBusy))
    {
-      if (_queryReceived & (_messageIdentifier > 0x000))
+      // if an invalid QUERY was received, then we need to let the client know
+      if (_invalidQueryReceived & (_messageIdentifier == 0x000))
+      {
+         PublishResponseToBluetooth(scomp_response_error, sizeof(scomp_response_error) - 1);
+         _queryReceived = false;
+         _invalidQueryReceived = false;
+         _messageIdentifier = 0x0000;
+         _SerialBuffer.clear();
+      }
+
+      // otherwise, return feedback and process the query
+      else if (_queryReceived & (_messageIdentifier > 0x000))
       {
 
          char *queryBody = new char[_SerialBuffer.getLength() + 1];
@@ -1818,6 +1787,7 @@ void ProcessReceivedQueries()
 
          delete[] queryBody;
          _queryReceived = false;
+         _invalidQueryReceived = false;
          _messageIdentifier = 0x0000;
          _SerialBuffer.clear();
       }

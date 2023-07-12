@@ -339,6 +339,71 @@ DigitalOut LED_SetConnectedToBLE(digitalPinToPinName(GPIO_PIN_4));
 
 //------------------------------------------------------------------------------------------------
 
+#pragma region PRIVATE MEMBERS
+/// @brief MBED RTOS timer
+Ticker timer;
+volatile bool timerEvent = false;
+
+/// @brief  current time (for TIMEOUT management)
+unsigned long currentTime = 0;
+
+/// @brief  what is the reader required to do?
+PN532_command _command = ReadCardContinuous;
+
+/// @brief  block access to the reader hardware?
+volatile bool _blockReader = false;
+
+/// @brief  when set true, we need to block all other I/O activites
+volatile bool _readerBusy = false;
+
+/// @brief  references the UID from the TAG to block multiple reads
+uint8_t _headerdata[7] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+/// @brief  create a new NDEF message
+NDEF_Message *ndef_message = new NDEF_Message();
+
+/// @brief  enable TIMEOUTS (for WRITE or ONE SHOT)?
+volatile bool _enableTimeouts = false;
+
+/// @brief  when incremented to a specified value, publish the current battery level
+uint16_t _batteryCount = BATTERY_UPDATE_COUNTER;
+
+/// @brief  calculate the CRC value of any byte or character stream
+CRC32 crc;
+
+/// @brief managed serial receive buffer (non-rotating!)
+SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
+
+/// @brief SCANNDY SCOMP message identifier as a 16 bit unsigned integer
+uint16_t _messageIdentifier = 0x0000;
+
+/// @brief has the reader received an SCANNDY SCOMP query?
+volatile bool _queryReceived = false;
+
+/// @brief has the reader received an SCANNDY SCOMP query?
+volatile bool _invalidQueryReceived = false;
+
+/// @brief what command type was issued by the connected client?
+SCOMP_command _scomp_command = none;
+
+/// @brief create the default SCANNDY PROTOCOL header for returning NFC payload data
+char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
+
+/// @brief create the default SCANNDY PROTOCOL header for returning an OK response
+char scomp_ok_response_header[] = "0000R0000#";
+
+/// @brief scomp query and response message identifier represented as a four character long string
+char scomp_query_ID[] = "0000";
+
+/// @brief scomp default response to a successfully received and processed query
+char scomp_response_ok[] = "ok";
+
+/// @brief scomp default response to a invalid processed query (E.g. wrong CRC32 value)
+char scomp_response_error[] = "error";
+#pragma endregion
+
+//------------------------------------------------------------------------------------------------
+
 #pragma region METHOD PROTOTYPES
 bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
