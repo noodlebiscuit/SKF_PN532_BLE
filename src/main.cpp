@@ -60,7 +60,7 @@ CRC32 crc;
 /// @brief managed serial receive buffer (non-rotating!)
 SerialBuffer<RECEIVE_BUFFER_LENGTH> _SerialBuffer;
 
-/// @brief SCANNDY SCOMP message identifier
+/// @brief SCANNDY SCOMP message identifier as a 16 bit unsigned integer
 uint16_t _messageIdentifier = 0x0000;
 
 /// @brief has the reader received an SCANNDY SCOMP query?
@@ -75,9 +75,13 @@ char scomp_rfid_response_header[] = "0000R0000#rfiddata:";
 /// @brief create the default SCANNDY PROTOCOL header for returning an OK response
 char scomp_ok_response_header[] = "0000R0000#";
 
-/// @brief scomp query and response identifier
+/// @brief scomp query and response message identifier represented as a four character long string
 char scomp_query_ID[] = "0000";
+
+/// @brief scomp default response to a successfully received and processed query
 char scomp_response_ok[] = "ok";
+
+/// @brief scomp default response to a invalid processed query (E.g. wrong CRC32 value)
 char scomp_response_error[] = "error";
 #pragma endregion
 
@@ -1513,11 +1517,15 @@ void FlashLED(int onPeriod, int offPeriod)
 /// @brief
 /// @brief When we've detected this two character sequence,  we then need to move back FOUR
 /// @brief characters so that we're pointing to the characters 'PPPP' - which represent the
-/// @brief complete length of the payload as a four-character long HEX string
+/// @brief complete length of the payload as a four-character long HEX string.
 /// @brief
 /// @brief     ->    .... Q PPPP # nnnnnn cccccccc
-/// @param central
-/// @param characteristic
+/// @brief
+/// @brief That done we read PPPP bytes from the input stream and take that as the message.
+/// @brief Then we take all received characters (nnnnQpppp#n....n) and calculate the CRC32.
+/// @brief Lastly we compate the two CRC32 values to determine if the query is valid
+/// @param central connected Bluetooth device
+/// @param characteristic data associated with the serial (SPP) BLE service
 ///
 void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
 {
@@ -1612,7 +1620,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       READER_DEBUGPRINT.print("length of command payload: ");
       READER_DEBUGPRINT.println(payloadLength);
       READER_DEBUGPRINT.print("total length of payload (with CRC): ");
-      READER_DEBUGPRINT.println(totalLength);
+      READER_DEBUGPRINT.println(totalPayloadLength);
       READER_DEBUGPRINT.print("receive buffer length: ");
       READER_DEBUGPRINT.println(_SerialBuffer.getLength());
 #endif
@@ -1689,22 +1697,18 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
-         // #ifdef SERIAL_RECEIVE_DEBUG
-         // READER_DEBUGPRINT.print(">> received payload:   ");
-         // READER_DEBUGPRINT.println(buffer);
-         // READER_DEBUGPRINT.print(">> with CRC32 removed: ");
-         // READER_DEBUGPRINT.println(queryPayload);
-         READER_DEBUGPRINT.print(">> query identifier:   ");
-         READER_DEBUGPRINT.println(_messageIdentifier);
-         READER_DEBUGPRINT.print(">> query body:         ");
-         READER_DEBUGPRINT.println(queryBody);
-         READER_DEBUGPRINT.print(">> CRC32:              ");
-         READER_DEBUGPRINT.println(queryCRC32);
+//#ifdef SERIAL_RECEIVE_DEBUG
+         READER_DEBUGPRINT.print(">> ID: [");
+         READER_DEBUGPRINT.print(_messageIdentifier);
+         READER_DEBUGPRINT.print("],   query body: [");
+         READER_DEBUGPRINT.print(queryBody);
+         READER_DEBUGPRINT.print("],   CRC32: [");
+         READER_DEBUGPRINT.print(queryCRC32);
          if (crcIsConfirmed)
-            READER_DEBUGPRINT.println(">> CRC32:              VALID");
+            READER_DEBUGPRINT.println(" - VALID]");
          else
-            READER_DEBUGPRINT.println(">> CRC32:              INVALID");
-         // #endif
+            READER_DEBUGPRINT.println(" - INVALID]");
+//#endif
 
          if (crcIsConfirmed)
          {
@@ -1722,9 +1726,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
       else
       {
-         // #ifdef SERIAL_RECEIVE_DEBUG
+#ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(".");
-         // #endif
+#endif
       }
 
       delete[] queryID;
@@ -1752,18 +1756,14 @@ void ProcessReceivedQueries()
    {
       if (_queryReceived & (_messageIdentifier > 0x000))
       {
-         char *queryBody = new char[_SerialBuffer.getLength() + 1];
 
+         char *queryBody = new char[_SerialBuffer.getLength() + 1];
          memset(queryBody, 0, _SerialBuffer.getLength() + 1);
 
          for (size_t i = 0; i < _SerialBuffer.getLength(); i++)
          {
             queryBody[i] = _SerialBuffer.get(i);
          }
-         queryBody[_SerialBuffer.getLength()] = 0x00;
-
-         READER_DEBUGPRINT.print("++++++++++++++: ");
-         READER_DEBUGPRINT.println(queryBody);
 
          std::string search(queryBody);
          for (size_t i = 0; i < SCOMP_COMMAND_COUNT; i++)
