@@ -497,10 +497,10 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
 #pragma region STRING MANAGEMENT AND SUPPORT
 ///
-/// @brief
-/// @param a
-/// @param b
-/// @param position
+/// @brief inserts on string into another
+/// @param a source string
+/// @param b substring
+/// @param position insert position
 ///
 void insert_substring(char *a, const char *b, int position)
 {
@@ -522,9 +522,9 @@ void insert_substring(char *a, const char *b, int position)
 
 ///
 /// @brief
-/// @param string
-/// @param position
-/// @param length
+/// @param string raw string
+/// @param position starting character index
+/// @param length number of characters to extract
 /// @return
 ///
 char *substring(char *string, int position, int length)
