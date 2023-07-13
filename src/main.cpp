@@ -1864,8 +1864,6 @@ void PublishResponseToBluetooth(char *pagedata, size_t message_length)
 // ************************************************************************************************
 // ************************************************************************************************
 
-#define HEX_BLOCK_BYTES 8
-
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series HEX NOTATION characters
 /// @brief Example: UID 04:4d:ec:b4 will be returned as "044decb4"
@@ -1910,11 +1908,13 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    txChar.writeValue(scomp_rfid_response_header, false);
    delayMicroseconds(BLOCK_WAIT_BLE);
 
-   // // generate the CRC for the NFC (ISO 14443) header block
+   // generate the CRC for the NFC (ISO 14443) header block
    crc.update(hexNotation, (BLOCK_SIZE_BLE * 2));
 
    // reset the page index
    int index = 0;
+
+   // PUBLISH THE NTAG (ISO14443) 16 BYTES UUID HEADER 
    for (int k = 0; k < 2; k++)
    {
       memset(queryBody, 0, BLOCK_SIZE_BLE);
@@ -1936,7 +1936,7 @@ void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // reset the page index
    index = 0;
 
-   // write out each block of the received payload
+   // PUBLISH THE NTAG (ISO14443) USER DATA (AKA NDEF) 
    while (message_length >= 0)
    {
       // flush the transmission buffer and allow for some delay
