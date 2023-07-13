@@ -16,23 +16,23 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * 
+ *
  * Description: main.cpp
  * =====================
- * 
+ *
  * The software allows you to emulate the functionality of a FEIG ECCO+ BLE NearField reader
  * using an ARDUINO NANO 33 BLE (with a Nordic NRF-52840 Microcontroller) as well as a PN532
  * NFC reader board from either SUNFOUNDER or ADA FRUIT.
- * 
+ *
  * The protocol being used is the proprietary SCANNDY SComP by PANMOBIL (FEIG)
- * 
+ *
  * No source code from either FEIG or PANMOBIL is contained in this firmware, and it is provided
  * purely to allow engineers who are developing for the ECCO+, to be able to debug Bluetooth data
- * at a VERY low level. It is ABSOLUTELY NOT intended for use in ANY commercial application! 
- * 
+ * at a VERY low level. It is ABSOLUTELY NOT intended for use in ANY commercial application!
+ *
  * The author CANNOT guarantee that everything here is correct, and FEIG has no involvement with
- * the project at ANY level. 
- * 
+ * the project at ANY level.
+ *
  * July 2023
  *
  ***************************************************************************************************/
@@ -417,7 +417,7 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
 /// @param pagedata raw NDEF message payload
 /// @param headerdata NDEF meassage header with UUID
 ///
-void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
+void __PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
@@ -1684,9 +1684,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
       else
       {
-//#ifdef SERIAL_RECEIVE_DEBUG
+         // #ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(".");
-//#endif
+         // #endif
       }
 
       delete[] queryID;
@@ -1725,10 +1725,9 @@ void ProcessReceivedQueries()
       // otherwise, return feedback and process the query
       else if (_queryReceived & (_messageIdentifier > 0x000))
       {
-
+         // load the query string into its own string for post-processing
          char *queryBody = new char[_SerialBuffer.getLength() + 1];
          memset(queryBody, 0, _SerialBuffer.getLength() + 1);
-
          for (size_t i = 0; i < _SerialBuffer.getLength(); i++)
          {
             queryBody[i] = _SerialBuffer.get(i);
@@ -1750,7 +1749,6 @@ void ProcessReceivedQueries()
             size_t index = search.find(':');
             char *subs = substring(queryBody, index + 2, _SerialBuffer.getLength() - (index + 1));
             READER_DEBUGPRINT.println(subs);
-
             PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
          }
 
@@ -1865,5 +1863,188 @@ void PublishResponseToBluetooth(char *pagedata, size_t message_length)
 // ************************************************************************************************
 // ************************************************************************************************
 // ************************************************************************************************
+
+#define HEX_BLOCK_BYTES 8
+
+///
+/// @brief Streams the NDEF contents out over Bluetooth as a series HEX NOTATION characters
+/// @brief Example: UID 04:4d:ec:b4 will be returned as "044decb4"
+/// @param pagedata raw NDEF message payload
+/// @param headerdata NDEF meassage header with UUID
+///
+void PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // what is the total message size in bytes?
+   int message_length = pagedata[1] + 3;
+
+   // convert both the header and payload data into HEX NOTATION strings
+   const char *headerHexData = HexStr(headerdata, BLOCK_SIZE_BLE);
+   const char *pagedataHexData = HexStr(pagedata, message_length);
+
+   // now we need to double the length of the message string
+   message_length *= 2;
+
+   // how many bytes is this payload going to contain?
+   uint16_t totalBytes = RFID_RESPONSE_BYTES + (BLOCK_SIZE_BLE * 2) + (message_length);
+
+   // set the SCOMP PROTOCOL total TAG payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
+
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_rfid_response_header[i + 5] = payloadLength[i];
+   }
+
+   // generate the CRC for the payload header block
+   crc.update(scomp_rfid_response_header, HEADER_BYTES);
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(scomp_rfid_response_header, false);
+
+   // // generate the CRC for the NFC (ISO 14443) header block
+   crc.update(headerHexData, (BLOCK_SIZE_BLE * 2));
+
+   // // generate the CRC for the NFC (ISO 14443) user data payload (NDEF)
+   crc.update(pagedataHexData, (message_length));
+
+   // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
+   char *queryBody = new char[BLOCK_SIZE_BLE];
+
+   // reset the page index
+   int index = 0;
+
+   // write out each block of the received payload
+   while (message_length >= 0)
+   {
+      memset(queryBody, 0, BLOCK_SIZE_BLE);
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      if (message_length >= BLOCK_SIZE_BLE)
+      {
+         for (int i = 0; i < BLOCK_SIZE_BLE; i++)
+         {
+            queryBody[i] = pagedataHexData[i + (index * BLOCK_SIZE_BLE)];
+         }
+         txChar.writeValue(queryBody, false);
+         index++;
+      }
+      else
+      {
+         for (int i = 0; i < message_length; i++)
+         {
+            queryBody[i] = pagedataHexData[i + (index * BLOCK_SIZE_BLE)];
+         }
+         txChar.writeValue(queryBody, false);
+      }
+      message_length -= BLOCK_SIZE_BLE;
+   }
+
+   delete[] queryBody;
+
+   // // append the CRC based on the transmitted payload
+   // message_length = pagedata[1] + 3;
+   // crc.update(pagedata, message_length);
+
+   // // add the serial port delay to improve comms efficiency
+   // delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // // publish the final CRC as an array of bytes
+   // crc.finalizeAsArray(EOR);
+   // const char *crcValue = HexStr(EOR, FOOTER_BYTES);
+   // txChar.writeValue(crcValue, false);
+   // crc.reset();
+
+   // // close for DEBUG
+   // delayMicroseconds(BLOCK_WAIT_BLE);
+   // txChar.writeValue(CR_LF, 2);
+
+   // release the blocker
+   _readerBusy = false;
+}
+
+///
+/// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @param pagedata raw NDEF message payload
+/// @param headerdata NDEF meassage header with UUID
+///
+void _____PublishPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // what is the total message size in bytes?
+   int message_length = pagedata[1] + 3;
+
+   // how many bytes is this payload going to contain?
+   uint16_t totalBytes = RFID_RESPONSE_BYTES + BLOCK_SIZE_BLE + message_length;
+
+   // set the SCOMP PROTOCOL total TAG payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
+
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES);
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_rfid_response_header[i + 5] = payloadLength[i];
+   }
+
+   // generate the CRC for the payload header block
+   crc.update(scomp_rfid_response_header, HEADER_BYTES);
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(scomp_rfid_response_header, false);
+
+   // generate the CRC for the NFC (ISO 14443) header block
+   crc.update(headerdata, BLOCK_SIZE_BLE);
+
+   // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
+
+   // reset the page index
+   int index = 0;
+
+   // write out each block of the received payload
+   while (message_length >= 0)
+   {
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      if (message_length >= BLOCK_SIZE_BLE)
+      {
+         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), BLOCK_SIZE_BLE);
+         index++;
+      }
+      else
+      {
+         txChar.writeValue(pagedata + (index * BLOCK_SIZE_BLE), message_length);
+      }
+      message_length -= BLOCK_SIZE_BLE;
+   }
+
+   // append the CRC based on the transmitted payload
+   message_length = pagedata[1] + 3;
+   crc.update(pagedata, message_length);
+
+   // add the serial port delay to improve comms efficiency
+   delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // publish the final CRC as an array of bytes
+   crc.finalizeAsArray(EOR);
+   const char *crcValue = HexStr(EOR, FOOTER_BYTES);
+   txChar.writeValue(crcValue, false);
+   crc.reset();
+
+   // close for DEBUG
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(CR_LF, 2);
+
+   // release the blocker
+   _readerBusy = false;
+}
 
 //-------------------------------------------------------------------------------------------------
