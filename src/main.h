@@ -156,6 +156,9 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 // UNCOMMENT THIS LINE TO ALLOW SUPPORT FOR NORDIC SPP UART
 #define NORDIC_SPP_FUNCTIONALITY
 
+// UNCOMMENT THIS LINE TO SET OUTPUT TO BINARY FORMAT
+#define SET_OUTPUT_AS_BINARY
+
 //------------------------------------------------------------------------------------------------
 
 /// @brief configure and initialise the NFC reader (we use configurable I/O for this)
@@ -432,7 +435,8 @@ void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void ProcessControlMessage(byte *, int);
 void PublishBattery();
 void PublishHardwareDetails();
-void PublishPayloadToBluetooth(uint8_t *, uint8_t *);
+void PublishHexPayloadToBluetooth(uint8_t *, uint8_t *);
+void PublishBinaryPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(uint8_t *);
 void PublishResponseToBluetooth(char *, size_t);
 void PublishWriteFeedback(byte, byte);
