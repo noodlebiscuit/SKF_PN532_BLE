@@ -159,8 +159,8 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 /// @brief  when set TRUE, hex strings are expressed in UPPER CASE
 #define HEX_UPPER_CASE true
 
-/// @brief  UNCOMMENT THIS LINE TO SET OUTPUT TO BINARY FORMAT
-// #define SET_OUTPUT_AS_BINARY
+/// @brief  when set TRUE, when SCAN output is to be ASCII (binary) instead of HEX based text
+#define SET_OUTPUT_AS_BINARY true
 
 //------------------------------------------------------------------------------------------------
 
@@ -435,6 +435,7 @@ void GetCachedRecordCount(uint8_t &);
 void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
+void ProcessRfidWriteQuery(char *, size_t);
 void ProcessControlMessage(byte *, int);
 void PublishBattery();
 void PublishHardwareDetails();

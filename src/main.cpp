@@ -414,6 +414,7 @@ void PublishResponseToBluetooth(uint8_t *responsePayload)
 
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series HEX NOTATION characters
+/// @brief Select using SET_OUTPUT_AS_BINARY
 /// @brief Example: UID 04:4d:ec:b4 will be returned as "044decb4"
 /// @param pagedata raw NDEF message payload
 /// @param headerdata NDEF meassage header with UUID
@@ -537,6 +538,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
+/// @brief Select using SET_OUTPUT_AS_BINARY
 /// @param pagedata raw NDEF message payload
 /// @param headerdata NDEF meassage header with UUID
 ///
@@ -852,11 +854,16 @@ void ConnectToReader(void)
                if ((_command == ReadCardContinuous) | (_command == ReadCardOnce))
                {
                   // if we have at least one NDEF record then write this to USB
-#ifdef SET_OUTPUT_AS_BINARY
-                  PublishBinaryPayloadToBluetooth(pagedata, headerdata);
-#else
-                  PublishHexPayloadToBluetooth(pagedata, headerdata);
-#endif
+                  if (SET_OUTPUT_AS_BINARY)
+                  {
+                     // publish data in raw binary format
+                     PublishBinaryPayloadToBluetooth(pagedata, headerdata);
+                  }
+                  else
+                  {
+                     // publish data as formatted hex string
+                     PublishHexPayloadToBluetooth(pagedata, headerdata);
+                  }
                }
             }
 
@@ -1562,16 +1569,6 @@ void FlashLED(int onPeriod, int offPeriod)
 
 //-------------------------------------------------------------------------------------------------
 
-// void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
-// {
-//    // read and cache the received BLE message
-//    byte tmp[RX_BUFFER_SIZE];
-//    int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
-
-//    // process the received BLE message
-//    ProcessControlMessage(tmp, dataLength);
-// }
-
 // ************************************************************************************************
 // ************************************************************************************************
 // ************************************************************************************************
@@ -1884,41 +1881,47 @@ void ProcessReceivedQueries()
          // extract the the command payload
          if (_scomp_command != SCOMP_command::none)
          {
-            size_t index = search.find(':');
-            char *subs = substring(queryBody, index + 2, _SerialBuffer.getLength() - (index + 1));
-            READER_DEBUGPRINT.println(subs);
-            PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
-         }
+            size_t colon = search.find(':');
+            char *subs = substring(queryBody, colon + 2, _SerialBuffer.getLength() - (colon + 1));
 
-         switch (_scomp_command)
-         {
-         case SCOMP_command::barscan:
-            READER_DEBUGPRINT.println("BAR SCAN");
-            break;
-         case SCOMP_command::beep:
-            READER_DEBUGPRINT.println("BEEP");
-            break;
-         case SCOMP_command::getcache:
-            READER_DEBUGPRINT.println("GET CACHE");
-            break;
-         case SCOMP_command::getversion:
-            READER_DEBUGPRINT.println("GET VERSION");
-            break;
-         case SCOMP_command::leds:
-            READER_DEBUGPRINT.println("LEDS");
-            break;
-         case SCOMP_command::none:
-            READER_DEBUGPRINT.println("NONE");
-            break;
-         case SCOMP_command::rfidscan:
-            READER_DEBUGPRINT.println("RFID SCAN");
-            break;
-         case SCOMP_command::rfidwrite:
-            READER_DEBUGPRINT.println("RFID WRITE");
-            break;
-         case SCOMP_command::vibrate:
-            READER_DEBUGPRINT.println("VIBRATE");
-            break;
+#ifdef SERIAL_RECEIVE_DEBUG
+            READER_DEBUGPRINT.println(subs);
+#endif
+            PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
+
+            // process the query command
+            switch (_scomp_command)
+            {
+            case SCOMP_command::barscan:
+               READER_DEBUGPRINT.println("BAR SCAN");
+               break;
+            case SCOMP_command::beep:
+               READER_DEBUGPRINT.println("BEEP");
+               break;
+            case SCOMP_command::getcache:
+               READER_DEBUGPRINT.println("GET CACHE");
+               break;
+            case SCOMP_command::getversion:
+               READER_DEBUGPRINT.println("GET VERSION");
+               break;
+            case SCOMP_command::leds:
+               READER_DEBUGPRINT.println("LEDS");
+               break;
+            case SCOMP_command::none:
+               READER_DEBUGPRINT.println("NONE");
+               break;
+            case SCOMP_command::rfidscan:
+               READER_DEBUGPRINT.println("RFID SCAN");
+               break;
+            case SCOMP_command::rfidwrite:
+               ProcessRfidWriteQuery(subs, _SerialBuffer.getLength() - (colon + 1));
+               break;
+            case SCOMP_command::vibrate:
+               READER_DEBUGPRINT.println("VIBRATE");
+               break;
+            }
+
+            free(subs);
          }
 
          delete[] queryBody;
@@ -1928,6 +1931,33 @@ void ProcessReceivedQueries()
          _SerialBuffer.clear();
       }
    }
+}
+
+///
+/// @brief
+/// @param query
+/// @param length
+///
+void ProcessRfidWriteQuery(char *query, size_t length)
+{
+   char *subs = substring(query, 4 + 1, length - 4);
+
+   std::string search(subs);
+   size_t comma = search.find(',');
+
+   char *address = substring(subs, 1, comma);
+   char *ndefPayload = substring(subs, comma+2, length - (comma-1));
+
+   READER_DEBUGPRINT.print("RFID WRITE  ");
+   READER_DEBUGPRINT.print(ndefPayload);
+   READER_DEBUGPRINT.print("  >");
+   READER_DEBUGPRINT.print(address);
+   READER_DEBUGPRINT.print("<  ");
+   READER_DEBUGPRINT.println(length);
+
+   free(address);
+   free(ndefPayload);
+   free(subs);
 }
 
 ///
