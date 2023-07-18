@@ -1937,16 +1937,23 @@ void ProcessRfidWriteQuery(char *query, size_t length)
       if (ndefIndexes[i + 1] > 0)
       {
          char *record = substring(ndef, ndefIndexes[i] + 1, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
-         READER_DEBUGPRINT.println(record);
+         AddNdefRecordToMessage((byte*)record, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
          free(record);
       }
       else
       {
          char *record = substring(ndef, ndefIndexes[i] + 1, ndefPayloadLength - ndefIndexes[i]);
-         READER_DEBUGPRINT.println(record);
+         AddNdefRecordToMessage((byte*)record, ndefPayloadLength - ndefIndexes[i]);
          free(record);
       }
    }
+
+   uint8_t cachedRecordCount;
+   GetCachedRecordCount(cachedRecordCount);
+
+   READER_DEBUGPRINT.println(" ");
+   READER_DEBUGPRINT.print("NDEF records: ");
+   READER_DEBUGPRINT.println(cachedRecordCount);
 
    // AddNdefRecordToMessage(message, messageSize);
    // GetCachedRecordCount(cachedRecordCount);
