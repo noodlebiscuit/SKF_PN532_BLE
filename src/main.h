@@ -153,11 +153,14 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 
 //------------------------------------------------------------------------------------------------
 
-// UNCOMMENT THIS LINE TO ALLOW SUPPORT FOR NORDIC SPP UART
+/// @brief UNCOMMENT THIS LINE TO ALLOW SUPPORT FOR NORDIC SPP UART
 #define NORDIC_SPP_FUNCTIONALITY
 
-// UNCOMMENT THIS LINE TO SET OUTPUT TO BINARY FORMAT
-#define SET_OUTPUT_AS_BINARY
+/// @brief  when set TRUE, hex strings are expressed in UPPER CASE
+#define HEX_UPPER_CASE true
+
+/// @brief  UNCOMMENT THIS LINE TO SET OUTPUT TO BINARY FORMAT
+// #define SET_OUTPUT_AS_BINARY
 
 //------------------------------------------------------------------------------------------------
 
@@ -449,7 +452,7 @@ void WriteNdefMessagePayload(uint8_t *, bool);
 void ProcessReceivedQueries();
 char *substring(char *, int, int);
 void insert_substring(char *, const char *, int);
-const char *HexStr(const uint8_t *, int);
+const char *HexStr(const uint8_t *, int, bool);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
