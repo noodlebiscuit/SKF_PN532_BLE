@@ -166,20 +166,20 @@ void onBLEDisconnected(BLEDevice central)
    LED_SetConnectedToBLE = LOW;
 }
 
-///
-/// @brief Process received data serial data
-/// @param central BLE device
-/// @param characteristic BLE characteristic referenced
-///
-void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
-{
-   // read and cache the received BLE message
-   byte tmp[RX_BUFFER_SIZE];
-   int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
+// ///
+// /// @brief Process received data serial data
+// /// @param central BLE device
+// /// @param characteristic BLE characteristic referenced
+// ///
+// void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
+// {
+//    // read and cache the received BLE message
+//    byte tmp[RX_BUFFER_SIZE];
+//    int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
 
-   // process the received BLE message
-   ProcessControlMessage(tmp, dataLength);
-}
+//    // process the received BLE message
+//    ProcessControlMessage(tmp, dataLength);
+// }
 
 ///
 /// @brief Process any received ProtoBuf message payload
@@ -200,10 +200,10 @@ void ProcessControlMessage(byte *message, int messageSize)
 
    // initialise responses here (cannot be done within the switch() statement)
    uint8_t cachedRecordCount = 0x00;
-   uint8_t encodedSizeLow = 0x00;
-   uint8_t encodedSizeHigh = 0x00;
+   // uint8_t encodedSizeLow = 0x00;
+   // uint8_t encodedSizeHigh = 0x00;
    uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
-   uint16_t encodedSize = 0x0000;
+   // uint16_t encodedSize = 0x0000;
 
    // process any received payload
    _command = GetCommandType(message);
@@ -250,34 +250,34 @@ void ProcessControlMessage(byte *message, int messageSize)
 #endif
       break;
 
-   // *************************************************************************
-   // Add a new record to the NDEF message cache and confirm with write-back
-   // *************************************************************************
-   case AppendToCachedNdefRecord:
-      _command = ReadCardContinuous;
-      _blockReader = false;
-      if (AppendToNdefRecordMessage(message, messageSize))
-      {
-         GetCachedRecordCount(cachedRecordCount);
-         responsePayload[0] = 0x00;
-         responsePayload[1] = cachedRecordCount;
-         responsePayload[2] = 0x0d;
-         responsePayload[3] = 0x0a;
-         delayMicroseconds(BLOCK_WAIT_BLE);
-         PublishResponseToBluetooth(responsePayload);
-#ifdef READER_DEBUG
-         READER_DEBUGPRINT.println("Append new data to current record in cache");
-#endif
-      }
-      else
-      {
-         delayMicroseconds(BLOCK_WAIT_BLE);
-         PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
-#ifdef READER_DEBUG
-         READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
-#endif
-      }
-      break;
+      // *************************************************************************
+      // Add a new record to the NDEF message cache and confirm with write-back
+      // *************************************************************************
+      //    case AppendToCachedNdefRecord:
+      //       _command = ReadCardContinuous;
+      //       _blockReader = false;
+      //       if (AppendToNdefRecordMessage(message, messageSize))
+      //       {
+      //          GetCachedRecordCount(cachedRecordCount);
+      //          responsePayload[0] = 0x00;
+      //          responsePayload[1] = cachedRecordCount;
+      //          responsePayload[2] = 0x0d;
+      //          responsePayload[3] = 0x0a;
+      //          delayMicroseconds(BLOCK_WAIT_BLE);
+      //          PublishResponseToBluetooth(responsePayload);
+      // #ifdef READER_DEBUG
+      //          READER_DEBUGPRINT.println("Append new data to current record in cache");
+      // #endif
+      //       }
+      //       else
+      //       {
+      //          delayMicroseconds(BLOCK_WAIT_BLE);
+      //          PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
+      // #ifdef READER_DEBUG
+      //          READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
+      // #endif
+      //       }
+      //       break;
 
    // *************************************************************************
    // Erase all existing cache contents and confirm with write-back
@@ -298,48 +298,6 @@ void ProcessControlMessage(byte *message, int messageSize)
 
 #ifdef READER_DEBUG
       READER_DEBUGPRINT.println("Erase all cached records");
-#endif
-      break;
-
-   // *************************************************************************
-   // count and return the number of NDEF records currently in the cache
-   // *************************************************************************
-   case CountCachedNdefRecords:
-      GetCachedRecordCount(cachedRecordCount);
-      responsePayload[0] = 0x00;
-      responsePayload[1] = cachedRecordCount;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
-      _command = ReadCardContinuous;
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Return number of cached NDEF records");
-#endif
-      break;
-
-   // *************************************************************************
-   // count and return the encoded message size in bytes
-   // *************************************************************************
-   case GetEncodedSize:
-      if (ndef_message->getRecordCount() > 0)
-      {
-         encodedSize = (uint16_t)ndef_message->getEncodedSize();
-         if (encodedSize <= NTAG_216_MEMORY)
-         {
-            encodedSizeLow = (uint8_t)(encodedSize & 0x00ff);
-            encodedSizeHigh = (uint8_t)(encodedSize >> 8);
-         }
-      }
-      responsePayload[0] = encodedSizeHigh;
-      responsePayload[1] = encodedSizeLow;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
-      _command = ReadCardContinuous;
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Get the encoded cache size");
 #endif
       break;
 
@@ -1134,7 +1092,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 /// @param message pointer to the received command message byte array
 /// @param messageSize number of bytes in the command message
 ///
-void AddNdefRecordToMessage(byte *message, int messageSize)
+void __AddNdefRecordToMessage(byte *message, int messageSize)
 {
    //
    // ensure the message size does not exceed the set limit plus the
@@ -1945,19 +1903,123 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    std::string search(subs);
    size_t comma = search.find(',');
 
+   //
+   // get the starting address and the ndef payload. We pretty much ignore the
+   // starting address, although we DO need the NDEF payload!
+   //
    char *address = substring(subs, 1, comma);
-   char *ndefPayload = substring(subs, comma+2, length - (comma-1));
+   char *ndef = substring(subs, comma + 2, length - (comma - 1));
+   int ndefPayloadLength = length - (comma + 5);
 
-   READER_DEBUGPRINT.print("RFID WRITE  ");
-   READER_DEBUGPRINT.print(ndefPayload);
-   READER_DEBUGPRINT.print("  >");
+   READER_DEBUGPRINT.print("RFID WRITE-");
+   READER_DEBUGPRINT.print(ndef);
+   READER_DEBUGPRINT.print("-");
    READER_DEBUGPRINT.print(address);
-   READER_DEBUGPRINT.print("<  ");
-   READER_DEBUGPRINT.println(length);
+   READER_DEBUGPRINT.print("-");
+   READER_DEBUGPRINT.println(ndefPayloadLength);
+
+   // go through all characters in the NDEF payload and extract each NDEF record
+   uint16_t records = 0;
+   uint16_t *ndefIndexes = new uint16_t[24];
+   memset(ndefIndexes, 0, 24);
+   for (int i = 0; i < (ndefPayloadLength - 3); i++)
+   {
+      if ((ndef[i] == NDEF_RECORD_HEADER[0]) & (ndef[i + 1] == NDEF_RECORD_HEADER[1]) & (ndef[i + 2] == NDEF_RECORD_HEADER[2]))
+      {
+         ndefIndexes[records] = (uint16_t)(i + 3);
+         records++;
+      }
+   }
+
+   // at this point we have indexes for each of the NDEF records
+   for (uint16_t i = 0; i < records; i++)
+   {
+      if (ndefIndexes[i + 1] > 0)
+      {
+         char *record = substring(ndef, ndefIndexes[i] + 1, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
+         READER_DEBUGPRINT.println(record);
+         free(record);
+      }
+      else
+      {
+         char *record = substring(ndef, ndefIndexes[i] + 1, ndefPayloadLength - ndefIndexes[i]);
+         READER_DEBUGPRINT.println(record);
+         free(record);
+      }
+   }
+
+   // AddNdefRecordToMessage(message, messageSize);
+   // GetCachedRecordCount(cachedRecordCount);
+   //  responsePayload[0] = 0x00;
+   //  responsePayload[1] = cachedRecordCount;
+   //  responsePayload[2] = 0x0d;
+   //  responsePayload[3] = 0x0a;
+   //  delayMicroseconds(BLOCK_WAIT_BLE);
+   //  PublishResponseToBluetooth(responsePayload);
+
+   // we want to publish the buffer
+   // _command = PublishCacheToCard;
 
    free(address);
-   free(ndefPayload);
+   free(ndef);
    free(subs);
+   delete[] ndefIndexes;
+}
+
+///
+/// @brief Appends a received NDEF BINARY record to an existing NDEF message
+/// @brief Note: this differs from an NDEF TEXT record in that it allows invalid
+/// @brief characters - specifically /ESC and 0x00
+/// @param message pointer to the received command message byte array
+/// @param messageSize number of bytes in the command message
+///
+void AddNdefRecordToMessage(byte *message, int messageSize)
+{
+   //
+   // ensure the message size does not exceed the set limit plus the
+   // number of bytes we've already allocated for the reader commands
+   //
+   if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
+   {
+      messageSize = NTAG_SINGLE_WRITE_BYTES + 2;
+   }
+
+   // create a new ndef record string buffer
+   byte *ndefRecord = new byte[NTAG_SINGLE_WRITE_BYTES + 1];
+
+   // clear the serial read buffer contents
+   memset(ndefRecord, 0, NTAG_SINGLE_WRITE_BYTES + 1);
+
+   //
+   // strip away the first two command characters but start the payload
+   // index at THREE. This is to allow us to write both the three-bytes
+   // header as well as the message to be handled
+   //
+   uint8_t index = 0x03;
+   for (int i = 2; i < messageSize; ++i)
+   {
+      ndefRecord[index] = message[i];
+      ++index;
+   }
+
+   //
+   // add the number of bytes used to describe the format
+   // For this reader, we'll stick to 'en'
+   //
+   ndefRecord[0] = 0x02;
+
+   // add the encloding type 'en'
+   ndefRecord[1] = 0x65;
+   ndefRecord[2] = 0x6e;
+
+   // add an NDEF binary record to the NDEF message
+   ndef_message->addBinaryRecord(ndefRecord, messageSize + 1);
+
+#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
+   DebugPrintCache();
+#endif
+
+   delete[] ndefRecord;
 }
 
 ///
