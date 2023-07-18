@@ -112,8 +112,8 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 #define NTAG_IC_TYPE 12              // NTAG byte which describes the actual card type
 #define NTAG_CAPABILITY_CONTAINER 14 // NTAG byte which details the total number of user bytes available
 #define NTAG_DEFAULT_PAGE_CLEAR 16   // how many pages should be cleared by default before a write action
-#define NTAG_SINGLE_WRITE_BYTES 24   //	number of characters per single NDEF record write
-#define NTAG_SINGLE_BINARY_BYTES 25  //	number of characters per single NDEF record write
+#define NTAG_SINGLE_WRITE_BYTES 48   //	number of characters per single NDEF record write
+#define NTAG_SINGLE_BINARY_BYTES 49  //	number of characters per single NDEF record write
 #define NTAG_MAX_RECORD_BYTES 448    //	absolute maximum number of characters per NDEF record
 
 //------------------------------------------------------------------------------------------------
@@ -414,7 +414,6 @@ char scomp_response_error[] = "error";
 //------------------------------------------------------------------------------------------------
 
 #pragma region METHOD PROTOTYPES
-bool AppendToNdefRecordMessage(byte *, int);
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);
 PN532_command GetCommandType(uint8_t *);
@@ -429,11 +428,13 @@ void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
 void AtTime(void);
+void ClearNdefRecords();
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();
 void ExecuteReaderCommands(uint8_t *, uint8_t *);
 void FlashLED(int, int);
+void ProcessGetCache();
 void GetCachedRecordCount(uint8_t &);
 void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
@@ -452,7 +453,6 @@ void SetupBLE();
 void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
-
 void ProcessReceivedQueries();
 char *substring(char *, int, int);
 void insert_substring(char *, const char *, int);

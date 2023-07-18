@@ -1092,7 +1092,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
 /// @param message pointer to the received command message byte array
 /// @param messageSize number of bytes in the command message
 ///
-void __AddNdefRecordToMessage(byte *message, int messageSize)
+void AddNdefRecordToMessage(byte *message, int messageSize)
 {
    //
    // ensure the message size does not exceed the set limit plus the
@@ -1178,64 +1178,6 @@ void AddNdefTextRecordToMessage(byte *message, int messageSize)
 #endif
 
    delete[] ndefRecord;
-}
-
-///
-/// @brief Appends a received data to the current NDEF message
-/// @param message pointer to the received command message byte array
-/// @param messageSize number of bytes in the command message
-/// @return TRUE on success
-///
-bool AppendToNdefRecordMessage(byte *message, int messageSize)
-{
-   // get the current record (last active) record from the cache
-   NDEF_Record record = ndef_message->getRecord(ndef_message->getRecordCount() - 1);
-
-   // get the index of the last byte in the currently cached record
-   int index = record.getPayloadLength();
-
-   if ((index + messageSize) < NTAG_MAX_RECORD_BYTES)
-   {
-      // create a full size buffer that we can load the current NDEF record into
-      byte *ndefRecord = new byte[NTAG_MAX_RECORD_BYTES];
-
-      // reset the contents of this buffer
-      memset(ndefRecord, 0, NTAG_MAX_RECORD_BYTES);
-
-      // now get the current NDEF record from the cache
-      record.getPayload(ndefRecord);
-
-      // append the new message to the end of the old one
-      for (int i = 2; i < messageSize; ++i)
-      {
-         ndefRecord[index] = message[i];
-         index++;
-      }
-
-      // overwrite the current NDEF record with the newly updated one
-      record.setPayload(ndefRecord, index);
-
-      // now update the parent NDEF message
-      ndef_message->setRecord(ndef_message->getRecordCount() - 1, record);
-
-      // release buffer resouces
-      delete[] ndefRecord;
-   }
-   else
-   {
-      //
-      // if we're here, then we've exceeded the number of bytes that can
-      // be appended to a single NDEF record, so need to return FALSE
-      //
-      return false;
-   }
-
-#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
-   DebugPrintCache();
-#endif
-
-   // well, if we reached this point, then all we can do is hope for the best!
-   return true;
 }
 
 ///
@@ -1857,6 +1799,7 @@ void ProcessReceivedQueries()
                READER_DEBUGPRINT.println("BEEP");
                break;
             case SCOMP_command::getcache:
+               ProcessGetCache();
                READER_DEBUGPRINT.println("GET CACHE");
                break;
             case SCOMP_command::getversion:
@@ -1888,6 +1831,32 @@ void ProcessReceivedQueries()
          _messageIdentifier = 0x0000;
          _SerialBuffer.clear();
       }
+   }
+}
+
+///
+/// @brief returns details on NDEF message waiting to be written
+///
+void ProcessGetCache()
+{
+   READER_DEBUGPRINT.print("GET CACHE");
+   if (ndef_message->getRecordCount() > 0)
+   {
+      uint16_t records = ndef_message->getRecordCount();
+      uint16_t totalSize = ndef_message->getEncodedSize();
+      std::string payload = std::to_string(records) + " NDEF record(s) " + std::to_string(totalSize) + " bytes";
+      PublishResponseToBluetooth(&payload[0], payload.size());
+   }
+}
+
+///
+/// @brief Drops all NDEF records from the reader's internal memory
+///
+void ClearNdefRecords()
+{
+   if (ndef_message->getRecordCount() > 0)
+   {
+      ndef_message->dropAllRecords();
    }
 }
 
@@ -1937,13 +1906,13 @@ void ProcessRfidWriteQuery(char *query, size_t length)
       if (ndefIndexes[i + 1] > 0)
       {
          char *record = substring(ndef, ndefIndexes[i] + 1, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
-         AddNdefRecordToMessage((byte*)record, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
+         AddNdefRecordToMessage((byte *)record, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
          free(record);
       }
       else
       {
          char *record = substring(ndef, ndefIndexes[i] + 1, ndefPayloadLength - ndefIndexes[i]);
-         AddNdefRecordToMessage((byte*)record, ndefPayloadLength - ndefIndexes[i]);
+         AddNdefRecordToMessage((byte *)record, ndefPayloadLength - ndefIndexes[i]);
          free(record);
       }
    }
@@ -1971,62 +1940,6 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    free(ndef);
    free(subs);
    delete[] ndefIndexes;
-}
-
-///
-/// @brief Appends a received NDEF BINARY record to an existing NDEF message
-/// @brief Note: this differs from an NDEF TEXT record in that it allows invalid
-/// @brief characters - specifically /ESC and 0x00
-/// @param message pointer to the received command message byte array
-/// @param messageSize number of bytes in the command message
-///
-void AddNdefRecordToMessage(byte *message, int messageSize)
-{
-   //
-   // ensure the message size does not exceed the set limit plus the
-   // number of bytes we've already allocated for the reader commands
-   //
-   if (messageSize > NTAG_SINGLE_WRITE_BYTES + 2)
-   {
-      messageSize = NTAG_SINGLE_WRITE_BYTES + 2;
-   }
-
-   // create a new ndef record string buffer
-   byte *ndefRecord = new byte[NTAG_SINGLE_WRITE_BYTES + 1];
-
-   // clear the serial read buffer contents
-   memset(ndefRecord, 0, NTAG_SINGLE_WRITE_BYTES + 1);
-
-   //
-   // strip away the first two command characters but start the payload
-   // index at THREE. This is to allow us to write both the three-bytes
-   // header as well as the message to be handled
-   //
-   uint8_t index = 0x03;
-   for (int i = 2; i < messageSize; ++i)
-   {
-      ndefRecord[index] = message[i];
-      ++index;
-   }
-
-   //
-   // add the number of bytes used to describe the format
-   // For this reader, we'll stick to 'en'
-   //
-   ndefRecord[0] = 0x02;
-
-   // add the encloding type 'en'
-   ndefRecord[1] = 0x65;
-   ndefRecord[2] = 0x6e;
-
-   // add an NDEF binary record to the NDEF message
-   ndef_message->addBinaryRecord(ndefRecord, messageSize + 1);
-
-#ifdef READER_DEBUG_APPEND_FUNCTIONALITY
-   DebugPrintCache();
-#endif
-
-   delete[] ndefRecord;
 }
 
 ///
