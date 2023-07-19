@@ -307,15 +307,15 @@ enum NTAG : uint8_t
 enum SCOMP_command : uint8_t
 {
     none = 0x00,
-    barscan = 0x01,
+    getversion = 0x01,
     beep = 0x02,
-    getcache = 0x03,
-    getversion = 0x04,
-    leds = 0x05,
+    vibrate = 0x03,
+    leds = 0x04,
+    barscan = 0x05,
     rfidscanUSR = 0x06,
     rfidscanTID = 0x07,
     rfidwrite = 0x08,
-    vibrate = 0x09,
+    getcache = 0x09,
     clearcache = 0x0A
 };
 
