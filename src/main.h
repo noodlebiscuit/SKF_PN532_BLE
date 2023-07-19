@@ -312,20 +312,25 @@ enum SCOMP_command : uint8_t
     getcache = 0x03,
     getversion = 0x04,
     leds = 0x05,
-    rfidscan = 0x06,
-    rfidwrite = 0x07,
-    vibrate = 0x08
+    rfidscanUSR = 0x06,
+    rfidscanTID = 0x07,
+    rfidwrite = 0x08,
+    vibrate = 0x09,
+    clearcache = 0x0A
 };
 
-const size_t SCOMP_COMMAND_COUNT = 8;
+const size_t SCOMP_COMMAND_COUNT = 10;
+
 const char SCOMP_GET_VERSION[] = "getversion:";
 const char SCOMP_BEEP[] = "beep:";
 const char SCOMP_VIBRATE[] = "vibrate:";
 const char SCOMP_LEDS[] = "leds:";
 const char SCOMP_BAR_SCAN[] = "barscan:";
-const char SCOMP_RFID_SCAN[] = "rfidscan:";
+const char SCOMP_RFID_SCAN_USR[] = "rfidscan:usr";
+const char SCOMP_RFID_SCAN_TID[] = "rfidscan:tid";
 const char SCOMP_RFID_WRITE[] = "rfidwrite:";
 const char SCOMP_GET_CACHE[] = "getcache:";
+const char SCOMP_CLEAR_CACHE[] = "clearcache:";
 
 ///
 /// @brief array of command strings
@@ -335,9 +340,11 @@ const std::string scompCommands[SCOMP_COMMAND_COUNT] = {SCOMP_GET_VERSION,
                                                         SCOMP_VIBRATE,
                                                         SCOMP_LEDS,
                                                         SCOMP_BAR_SCAN,
-                                                        SCOMP_RFID_SCAN,
+                                                        SCOMP_RFID_SCAN_USR,
+                                                        SCOMP_RFID_SCAN_TID,
                                                         SCOMP_RFID_WRITE,
-                                                        SCOMP_GET_CACHE};
+                                                        SCOMP_GET_CACHE,
+                                                        SCOMP_CLEAR_CACHE};
 
 //------------------------------------------------------------------------------------------------
 
@@ -428,7 +435,7 @@ void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
 void AtTime(void);
-void ClearNdefRecords();
+void ProcessClearCache();
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();

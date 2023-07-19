@@ -1800,7 +1800,6 @@ void ProcessReceivedQueries()
                break;
             case SCOMP_command::getcache:
                ProcessGetCache();
-               READER_DEBUGPRINT.println("GET CACHE");
                break;
             case SCOMP_command::getversion:
                READER_DEBUGPRINT.println("GET VERSION");
@@ -1811,14 +1810,20 @@ void ProcessReceivedQueries()
             case SCOMP_command::none:
                READER_DEBUGPRINT.println("NONE");
                break;
-            case SCOMP_command::rfidscan:
-               READER_DEBUGPRINT.println("RFID SCAN");
+            case SCOMP_command::rfidscanUSR:
+               READER_DEBUGPRINT.println("RFID SCAN USR");
+               break;
+            case SCOMP_command::rfidscanTID:
+               READER_DEBUGPRINT.println("RFID SCAN TID");
                break;
             case SCOMP_command::rfidwrite:
                ProcessRfidWriteQuery(subs, _SerialBuffer.getLength() - (colon + 1));
                break;
             case SCOMP_command::vibrate:
                READER_DEBUGPRINT.println("VIBRATE");
+               break;
+            case SCOMP_command::clearcache:
+               ProcessClearCache();
                break;
             }
 
@@ -1844,16 +1849,18 @@ void ProcessGetCache()
    {
       uint16_t records = ndef_message->getRecordCount();
       uint16_t totalSize = ndef_message->getEncodedSize();
-      std::string payload = std::to_string(records) + " NDEF record(s) " + std::to_string(totalSize) + " bytes";
+      std::string payload = std::to_string(records) + " " + std::to_string(totalSize);
       PublishResponseToBluetooth(&payload[0], payload.size());
    }
 }
 
 ///
 /// @brief Drops all NDEF records from the reader's internal memory
+/// @brief Note: this is NOT an official SCANNDY command!
 ///
-void ClearNdefRecords()
+void ProcessClearCache()
 {
+   READER_DEBUGPRINT.println("CLEAR CACHE");
    if (ndef_message->getRecordCount() > 0)
    {
       ndef_message->dropAllRecords();
@@ -1880,12 +1887,14 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    char *ndef = substring(subs, comma + 2, length - (comma - 1));
    int ndefPayloadLength = length - (comma + 5);
 
+#ifdef SERIAL_RECEIVE_DEBUG
    READER_DEBUGPRINT.print("RFID WRITE-");
    READER_DEBUGPRINT.print(ndef);
    READER_DEBUGPRINT.print("-");
    READER_DEBUGPRINT.print(address);
    READER_DEBUGPRINT.print("-");
    READER_DEBUGPRINT.println(ndefPayloadLength);
+#endif
 
    // go through all characters in the NDEF payload and extract each NDEF record
    uint16_t records = 0;
