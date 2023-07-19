@@ -1840,18 +1840,15 @@ void ProcessReceivedQueries()
 }
 
 ///
-/// @brief returns details on NDEF message waiting to be written
+/// @brief returns total number of bytes in the NDEF Message
 ///
 void ProcessGetCache()
 {
    READER_DEBUGPRINT.print("GET CACHE");
-   if (ndef_message->getRecordCount() > 0)
-   {
-      uint16_t records = ndef_message->getRecordCount();
-      uint16_t totalSize = ndef_message->getEncodedSize();
-      std::string payload = std::to_string(records) + " " + std::to_string(totalSize);
-      PublishResponseToBluetooth(&payload[0], payload.size());
-   }
+   uint16_t records = ndef_message->getRecordCount();
+   uint16_t totalSize = ndef_message->getEncodedSize();
+   std::string payload = std::to_string(records) + "," + std::to_string(totalSize);
+   PublishResponseToBluetooth(&payload[0], payload.size());
 }
 
 ///
