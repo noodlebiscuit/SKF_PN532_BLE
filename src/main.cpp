@@ -1239,14 +1239,14 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
       ++page;
       offset += BYTES_PER_BLOCK;
       ToggleLED(true);
-      PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
+      // PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
 
    // release buffer resouces
    delete[] buffer;
 
    // post two 0xff bytes to signify end of write sequence
-   PublishWriteFeedback(0x00, 0x00);
+   // PublishWriteFeedback(0x00, 0x00);
 
    // reset the LED
    ToggleLED(false);
@@ -1897,11 +1897,14 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    uint16_t records = 0;
    uint16_t *ndefIndexes = new uint16_t[24];
    memset(ndefIndexes, 0, 24);
+
    for (int i = 0; i < (ndefPayloadLength - 3); i++)
    {
       if ((ndef[i] == NDEF_RECORD_HEADER[0]) & (ndef[i + 1] == NDEF_RECORD_HEADER[1]) & (ndef[i + 2] == NDEF_RECORD_HEADER[2]))
       {
-         ndefIndexes[records] = (uint16_t)(i + 3);
+         ndefIndexes[records] = (uint16_t)i;
+         READER_DEBUGPRINT.print(ndefIndexes[records]);
+         READER_DEBUGPRINT.print(", ");
          records++;
       }
    }
@@ -1909,16 +1912,33 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    // at this point we have indexes for each of the NDEF records
    for (uint16_t i = 0; i < records; i++)
    {
+      // make sure we're not at the end of the indexes
       if (ndefIndexes[i + 1] > 0)
       {
-         char *record = substring(ndef, ndefIndexes[i] + 1, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
-         AddNdefRecordToMessage((byte *)record, ndefIndexes[i + 1] - (ndefIndexes[i] + 3));
+         // the length will be the next index minus the current index
+         int length = ndefIndexes[i + 1] - (ndefIndexes[i] + 1);
+
+         // now get the current start index
+         int startIndex = ndefIndexes[i] + 2;
+
+         // extract the record
+         char *record = substring(ndef, startIndex, length);
+         AddNdefRecordToMessage((byte *)record, length);
          free(record);
       }
       else
       {
-         char *record = substring(ndef, ndefIndexes[i] + 1, ndefPayloadLength - ndefIndexes[i]);
-         AddNdefRecordToMessage((byte *)record, ndefPayloadLength - ndefIndexes[i]);
+         // the length will be the next index minus the current index
+         int length = ndefPayloadLength - (ndefIndexes[i] + 1);
+
+         // now get the current start index
+         int startIndex = ndefIndexes[i] + 2;
+
+         // extract the record
+         char *record = substring(ndef, startIndex, length);
+
+         // add to the NDEF record
+         AddNdefRecordToMessage((byte *)record, length);
          free(record);
       }
    }
@@ -1940,7 +1960,7 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    //  PublishResponseToBluetooth(responsePayload);
 
    // we want to publish the buffer
-   // _command = PublishCacheToCard;
+   _command = PublishCacheToCard;
 
    free(address);
    free(ndef);

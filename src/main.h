@@ -247,7 +247,7 @@ uint8_t PAYLOAD_LEGTH[LENGTH_BYTES] = {0x00, 0x00};
 uint8_t EOR[FOOTER_BYTES] = {0x00, 0x00, 0x00, 0x00};
 
 /// @brief  > search bytes to detect the start of an NDEF record
-uint8_t NDEF_RECORD_HEADER[4] = {0x02, 0x65, 0x6E};
+uint8_t NDEF_RECORD_HEADER[3] = {0x02, 0x65, 0x6E};
 
 /// @brief  > BASIC CARRIAGE RETURN \ LINE FEED
 uint8_t CR_LF[2] = {0x0d, 0x0a};
