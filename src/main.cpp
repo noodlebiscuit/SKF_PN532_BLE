@@ -1865,14 +1865,18 @@ void ProcessClearCache()
 }
 
 ///
-/// @brief
+/// @brief construct a complete NDEF message of discreet NDEF records, and 
+/// @brief then set the _COMMAND flag to [PublishCacheToCard], which will
+/// @brief force the reader to post the message to the NTAG card/sensor
 /// @param query
 /// @param length
 ///
 void ProcessRfidWriteQuery(char *query, size_t length)
 {
-   char *subs = substring(query, 4 + 1, length - 4);
+   int recordLength = 0;
+   int startIndex = 0;
 
+   char *subs = substring(query, 4 + 1, length - 4);
    std::string search(subs);
    size_t comma = search.find(',');
 
@@ -1903,65 +1907,37 @@ void ProcessRfidWriteQuery(char *query, size_t length)
       if ((ndef[i] == NDEF_RECORD_HEADER[0]) & (ndef[i + 1] == NDEF_RECORD_HEADER[1]) & (ndef[i + 2] == NDEF_RECORD_HEADER[2]))
       {
          ndefIndexes[records] = (uint16_t)i;
-         READER_DEBUGPRINT.print(ndefIndexes[records]);
-         READER_DEBUGPRINT.print(", ");
          records++;
       }
    }
 
-   // at this point we have indexes for each of the NDEF records
+   //
+   // at this point we have indexes for each of the NDEF records so
+   // we can split the query payload string into a series of seperate
+   // NDEF records, which can then be added to the NDEF message.
+   //
    for (uint16_t i = 0; i < records; i++)
    {
-      // make sure we're not at the end of the indexes
       if (ndefIndexes[i + 1] > 0)
       {
-         // the length will be the next index minus the current index
-         int length = ndefIndexes[i + 1] - (ndefIndexes[i] + 1);
-
-         // now get the current start index
-         int startIndex = ndefIndexes[i] + 2;
-
-         // extract the record
-         char *record = substring(ndef, startIndex, length);
-         AddNdefRecordToMessage((byte *)record, length);
-         free(record);
+         recordLength = ndefIndexes[i + 1] - (ndefIndexes[i] + 1);
+         startIndex = ndefIndexes[i] + 2;
       }
       else
       {
-         // the length will be the next index minus the current index
-         int length = ndefPayloadLength - (ndefIndexes[i] + 1);
-
-         // now get the current start index
-         int startIndex = ndefIndexes[i] + 2;
-
-         // extract the record
-         char *record = substring(ndef, startIndex, length);
-
-         // add to the NDEF record
-         AddNdefRecordToMessage((byte *)record, length);
-         free(record);
+         recordLength = ndefPayloadLength - (ndefIndexes[i] + 1);
+         startIndex = ndefIndexes[i] + 2;
       }
+
+      char *record = substring(ndef, startIndex, recordLength);
+      AddNdefRecordToMessage((byte *)record, recordLength);
+      free(record);
    }
 
-   uint8_t cachedRecordCount;
-   GetCachedRecordCount(cachedRecordCount);
-
-   READER_DEBUGPRINT.println(" ");
-   READER_DEBUGPRINT.print("NDEF records: ");
-   READER_DEBUGPRINT.println(cachedRecordCount);
-
-   // AddNdefRecordToMessage(message, messageSize);
-   // GetCachedRecordCount(cachedRecordCount);
-   //  responsePayload[0] = 0x00;
-   //  responsePayload[1] = cachedRecordCount;
-   //  responsePayload[2] = 0x0d;
-   //  responsePayload[3] = 0x0a;
-   //  delayMicroseconds(BLOCK_WAIT_BLE);
-   //  PublishResponseToBluetooth(responsePayload);
-
-   // we want to publish the buffer
+   // we want to publish the buffered NDEF message
    _command = PublishCacheToCard;
 
+   // and not forgetting!
    free(address);
    free(ndef);
    free(subs);
