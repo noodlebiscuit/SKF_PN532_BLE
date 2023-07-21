@@ -166,174 +166,6 @@ void onBLEDisconnected(BLEDevice central)
    LED_SetConnectedToBLE = LOW;
 }
 
-// ///
-// /// @brief Process received data serial data
-// /// @param central BLE device
-// /// @param characteristic BLE characteristic referenced
-// ///
-// void onRxCharValueUpdate(BLEDevice central, BLECharacteristic characteristic)
-// {
-//    // read and cache the received BLE message
-//    byte tmp[RX_BUFFER_SIZE];
-//    int dataLength = rxChar.readValue(tmp, RX_BUFFER_SIZE);
-
-//    // process the received BLE message
-//    ProcessControlMessage(tmp, dataLength);
-// }
-
-///
-/// @brief Process any received ProtoBuf message payload
-/// @param message pointer to the received PB message byte array
-/// @param messageSize number of bytes in the PB message
-///
-void ProcessControlMessage(byte *message, int messageSize)
-{
-
-   READER_DEBUGPRINT.print(messageSize);
-   READER_DEBUGPRINT.print("> ");
-   for (int i = 0; i < messageSize; ++i)
-   {
-      READER_DEBUGPRINT.print(message[i], HEX);
-      READER_DEBUGPRINT.print(" ");
-   }
-   READER_DEBUGPRINT.println("");
-
-   // initialise responses here (cannot be done within the switch() statement)
-   uint8_t cachedRecordCount = 0x00;
-   // uint8_t encodedSizeLow = 0x00;
-   // uint8_t encodedSizeHigh = 0x00;
-   uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
-   // uint16_t encodedSize = 0x0000;
-
-   // process any received payload
-   _command = GetCommandType(message);
-
-   // OK, and what's expected of us here?
-   switch (_command)
-   {
-   // *************************************************************************
-   // Read detected card continuously
-   // *************************************************************************
-   case ReadCardContinuous:
-      _blockReader = false;
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Read continuous (executed within main reader loop)");
-#endif
-      break;
-
-   // *************************************************************************
-   // Read detected card just once (re-issue this command to repeat)
-   // *************************************************************************
-   case ReadCardOnce:
-      _blockReader = false;
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Read once (executed within main reader loop)");
-#endif
-      break;
-
-   // *************************************************************************
-   // Add a new record to the NDEF message cache and confirm with write-back
-   // *************************************************************************
-   case AddNdefRecordToCache:
-      _command = ReadCardContinuous;
-      _blockReader = false;
-      AddNdefRecordToMessage(message, messageSize);
-      GetCachedRecordCount(cachedRecordCount);
-      responsePayload[0] = 0x00;
-      responsePayload[1] = cachedRecordCount;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Add single record to cache");
-#endif
-      break;
-
-      // *************************************************************************
-      // Add a new record to the NDEF message cache and confirm with write-back
-      // *************************************************************************
-      //    case AppendToCachedNdefRecord:
-      //       _command = ReadCardContinuous;
-      //       _blockReader = false;
-      //       if (AppendToNdefRecordMessage(message, messageSize))
-      //       {
-      //          GetCachedRecordCount(cachedRecordCount);
-      //          responsePayload[0] = 0x00;
-      //          responsePayload[1] = cachedRecordCount;
-      //          responsePayload[2] = 0x0d;
-      //          responsePayload[3] = 0x0a;
-      //          delayMicroseconds(BLOCK_WAIT_BLE);
-      //          PublishResponseToBluetooth(responsePayload);
-      // #ifdef READER_DEBUG
-      //          READER_DEBUGPRINT.println("Append new data to current record in cache");
-      // #endif
-      //       }
-      //       else
-      //       {
-      //          delayMicroseconds(BLOCK_WAIT_BLE);
-      //          PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
-      // #ifdef READER_DEBUG
-      //          READER_DEBUGPRINT.println("ERROR: CACHE OVERRUN");
-      // #endif
-      //       }
-      //       break;
-
-   // *************************************************************************
-   // Erase all existing cache contents and confirm with write-back
-   // *************************************************************************
-   case EraseCachedNdefRecords:
-      if (ndef_message->getRecordCount() > 0)
-      {
-         ndef_message->dropAllRecords();
-      }
-      GetCachedRecordCount(cachedRecordCount);
-      responsePayload[0] = 0x00;
-      responsePayload[1] = cachedRecordCount;
-      responsePayload[2] = 0x0d;
-      responsePayload[3] = 0x0a;
-      delayMicroseconds(BLOCK_WAIT_BLE);
-      PublishResponseToBluetooth(responsePayload);
-      _command = ReadCardContinuous;
-
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Erase all cached records");
-#endif
-      break;
-
-   // *************************************************************************
-   // erase all contents of the current card
-   // *************************************************************************
-   case EraseCardContents:
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Erase card contents (executed within main reader loop)");
-#endif
-      break;
-
-   // *************************************************************************
-   // publish the NDEF record cache to the next detected card
-   // *************************************************************************
-   case PublishCacheToCard:
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Publish cache to card (executed within main reader loop)");
-#endif
-      break;
-
-   // *************************************************************************
-   // debug only (unknown command)
-   // *************************************************************************
-   default:
-#ifdef READER_DEBUG
-      READER_DEBUGPRINT.println("Unknown");
-#endif
-      break;
-   }
-   delete[] responsePayload;
-
-   // single instance LED flash
-   FlashLED(COMMAND_LED_FLASH, 0);
-}
-
 ///
 /// @brief Reads and returns an averaged value for the 3.7V Lithium ion battery in MV
 /// @param PIN what analogue pin are we connecting to?
@@ -357,18 +189,18 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
 /// @brief DEPRECATED
 /// @param responsePayload raw NDEF message payload
 ///
-void PublishResponseToBluetooth(uint8_t *responsePayload)
-{
-   // make sure we don't have any NFC scanning overlaps here
-   _readerBusy = true;
+// void PublishResponseToBluetooth(uint8_t *responsePayload)
+// {
+//    // make sure we don't have any NFC scanning overlaps here
+//    _readerBusy = true;
 
-   // send the payload terminator
-   delayMicroseconds(BLOCK_WAIT_BLE);
-   txChar.writeValue(responsePayload, 4);
+//    // send the payload terminator
+//    delayMicroseconds(BLOCK_WAIT_BLE);
+//    txChar.writeValue(responsePayload, 4);
 
-   // release the blocker
-   _readerBusy = false;
-}
+//    // release the blocker
+//    _readerBusy = false;
+// }
 
 ///
 /// @brief Streams the NDEF contents out over Bluetooth as a series HEX NOTATION characters
@@ -846,7 +678,8 @@ void ConnectToReader(void)
          ExecuteReaderCommands(headerdata, pagedata);
 
          // post two 0xff bytes to signify end of write sequence
-         PublishWriteFeedback(CARD_ERROR_EMPTY[0], CARD_ERROR_EMPTY[1]);
+         /* TODO ADD ERROR HERE*/
+         // PublishWriteFeedback(CARD_ERROR_EMPTY[0], CARD_ERROR_EMPTY[1]);
       }
 
       delete[] pagedata;
@@ -1059,7 +892,7 @@ void ExecuteReaderCommands(uint8_t *headerdata, uint8_t *pagedata)
       }
       else
       {
-         PublishResponseToBluetooth(WRITE_ERROR_OVERRUN);
+         PublishResponseToBluetooth(scomp_response_error, sizeof(scomp_response_error) - 1);
       }
 
       // irrespective of whether we managed to update the card, we always empty the reader cache
@@ -1187,6 +1020,9 @@ void AddNdefTextRecordToMessage(byte *message, int messageSize)
 ///
 void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 {
+   // let the user know we've detected the tag or sensor
+   PublishResponseToBluetooth(scomp_response_processing, sizeof(scomp_response_processing) - 1);
+
    // create the page buffer
    uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
 
@@ -1239,14 +1075,13 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
       ++page;
       offset += BYTES_PER_BLOCK;
       ToggleLED(true);
-      // PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
 
    // release buffer resouces
    delete[] buffer;
 
-   // post two 0xff bytes to signify end of write sequence
-   // PublishWriteFeedback(0x00, 0x00);
+   // let the user know we're done here!
+   PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
 
    // reset the LED
    ToggleLED(false);
@@ -1259,6 +1094,9 @@ void WriteNdefMessagePayload(uint8_t *headerdata, bool clearCard)
 ///
 void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
 {
+   // let the user know we've detected the tag or sensor
+   PublishResponseToBluetooth(scomp_response_processing, sizeof(scomp_response_processing) - 1);
+
    // create the page buffer
    uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
 
@@ -1271,11 +1109,10 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
       memset(pageBuffer, 0, 4);
       nfc.ntag2xx_WritePage(i, pageBuffer);
       ToggleLED(true);
-      PublishWriteFeedback((uint8_t)((pages - i) & 0xff), (uint8_t)(((pages - i) >> 8) & 0xff));
    }
 
-   // post two 0xff bytes to signify end of write sequence
-   PublishWriteFeedback(0x00, 0x00);
+   // let the user know we're done here!
+   PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
 
    // now we clear EVERYTHING!! This includes local memory and the NFC reader cache!
    std::fill_n(pagedata, TOTAL_BLOCKS * BYTES_PER_BLOCK, 0);
@@ -1311,22 +1148,6 @@ void DebugPrintCache()
    }
    READER_DEBUGPRINT.println("");
    delete[] debugNdefRecord;
-}
-
-///
-/// @brief Publish the current page number being written
-/// @param pageLow low byte value
-/// @param pageHigh high byte value
-///
-void PublishWriteFeedback(byte pageLow, byte pageHigh)
-{
-   uint8_t *responsePayload = new uint8_t[OPERAND_BYTES];
-   responsePayload[0] = pageHigh;
-   responsePayload[1] = pageLow;
-   responsePayload[2] = 0x0d;
-   responsePayload[3] = 0x0a;
-   PublishResponseToBluetooth(responsePayload);
-   delete[] responsePayload;
 }
 
 ///
@@ -1372,59 +1193,6 @@ void ResetReader()
 void GetCachedRecordCount(uint8_t &cachedRecordCount)
 {
    cachedRecordCount = (uint8_t)ndef_message->getRecordCount();
-}
-
-///
-/// @brief Get the received command type
-/// @param buffer byte array to search against
-/// @return reader command type (PN532_command)
-///
-PN532_command GetCommandType(uint8_t *buffer)
-{
-   if (memcmp(buffer, CONTINUOUS_READ_CARD, 2) == 0)
-   {
-      return ReadCardContinuous;
-   }
-   else if (memcmp(buffer, SINGLE_READ_CARD, 2) == 0)
-   {
-      return ReadCardOnce;
-   }
-   else if (memcmp(buffer, ADD_NDEF_RECORD, 2) == 0)
-   {
-      return AddNdefRecordToCache;
-   }
-   else if (memcmp(buffer, APPEND_NDEF_RECORD, 2) == 0)
-   {
-      return AppendToCachedNdefRecord;
-   }
-   else if (memcmp(buffer, PUBLISH_TO_CARD, 2) == 0)
-   {
-      return PublishCacheToCard;
-   }
-   else if (memcmp(buffer, ERASE_CARD_CONTENTS, 2) == 0)
-   {
-      return EraseCardContents;
-   }
-   else if (memcmp(buffer, COUNT_NDEF_RECORDS, 2) == 0)
-   {
-      return CountCachedNdefRecords;
-   }
-   else if (memcmp(buffer, CLEAR_NDEF_CACHE, 2) == 0)
-   {
-      return EraseCachedNdefRecords;
-   }
-   else if (memcmp(buffer, GET_ENCODED_SIZE, 2) == 0)
-   {
-      return GetEncodedSize;
-   }
-   else if (memcmp(buffer, RESEND_FAILED_PAYLOAD, 2) == 0)
-   {
-      return ResendFailedPayload;
-   }
-   else
-   {
-      return ReadCardContinuous;
-   }
 }
 
 ///
@@ -1865,7 +1633,7 @@ void ProcessClearCache()
 }
 
 ///
-/// @brief construct a complete NDEF message of discreet NDEF records, and 
+/// @brief construct a complete NDEF message of discreet NDEF records, and
 /// @brief then set the _COMMAND flag to [PublishCacheToCard], which will
 /// @brief force the reader to post the message to the NTAG card/sensor
 /// @param query

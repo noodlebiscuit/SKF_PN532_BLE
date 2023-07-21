@@ -418,6 +418,9 @@ char scomp_response_ok[] = "ok";
 
 /// @brief scomp default response to a invalid processed query (E.g. wrong CRC32 value)
 char scomp_response_error[] = "error";
+
+/// @brief SKF INTERNAL ** 
+char scomp_response_processing[] = "...";
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
@@ -425,7 +428,7 @@ char scomp_response_error[] = "error";
 #pragma region METHOD PROTOTYPES
 int GetPageCount(int);
 NTAG GetCardType(uint8_t *);
-PN532_command GetCommandType(uint8_t *);
+// PN532_command GetCommandType(uint8_t *);
 size_t WriteToSPP(uint8_t);
 static void onBLEWritten(BLEDevice, BLECharacteristic);
 uint16_t GetTotalCardMemory(NTAG);
@@ -449,14 +452,14 @@ void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
 void ProcessRfidWriteQuery(char *, size_t);
-void ProcessControlMessage(byte *, int);
+//void ProcessControlMessage(byte *, int);
 void PublishBattery();
 void PublishHardwareDetails();
 void PublishHexPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishBinaryPayloadToBluetooth(uint8_t *, uint8_t *);
-void PublishResponseToBluetooth(uint8_t *);
+//void PublishResponseToBluetooth(uint8_t *);
 void PublishResponseToBluetooth(char *, size_t);
-void PublishWriteFeedback(byte, byte);
+//void PublishWriteFeedback(byte, byte);
 void ResetReader();
 void SetupBLE();
 void StartBLE();
