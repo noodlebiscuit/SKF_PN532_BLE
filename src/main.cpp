@@ -185,24 +185,6 @@ uint16_t ReadBattery(pin_size_t PIN, int average)
 }
 
 ///
-/// @brief Streams the NDEF contents out over Bluetooth as a series of 16 byte packets
-/// @brief DEPRECATED
-/// @param responsePayload raw NDEF message payload
-///
-// void PublishResponseToBluetooth(uint8_t *responsePayload)
-// {
-//    // make sure we don't have any NFC scanning overlaps here
-//    _readerBusy = true;
-
-//    // send the payload terminator
-//    delayMicroseconds(BLOCK_WAIT_BLE);
-//    txChar.writeValue(responsePayload, 4);
-
-//    // release the blocker
-//    _readerBusy = false;
-// }
-
-///
 /// @brief Streams the NDEF contents out over Bluetooth as a series HEX NOTATION characters
 /// @brief Select using SET_OUTPUT_AS_BINARY
 /// @brief Example: UID 04:4d:ec:b4 will be returned as "044decb4"
@@ -406,6 +388,59 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    // release the blocker
    _readerBusy = false;
 }
+
+///
+/// @brief Streams the NDEF UID header out over Bluetooth as a single sixteen byte packet
+/// @param headerdata NDEF meassage header with UUID
+///
+void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
+{
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // how many bytes is this payload going to contain?
+   uint16_t totalBytes = RFID_RESPONSE_BYTES + BLOCK_SIZE_BLE;
+
+   // set the SCOMP PROTOCOL total TAG payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
+
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES, HEX_UPPER_CASE);
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_rfid_response_header[i + 5] = payloadLength[i];
+   }
+
+   // generate the CRC for the payload header block
+   crc.update(scomp_rfid_response_header, HEADER_BYTES);
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(scomp_rfid_response_header, false);
+
+   // generate the CRC for the NFC (ISO 14443) header block
+   crc.update(headerdata, BLOCK_SIZE_BLE);
+
+   // PUBLISH ISO14443 TAG DATA TO BLUETOOTH
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(headerdata, BLOCK_SIZE_BLE);
+
+   // add the serial port delay to improve comms efficiency
+   delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // publish the final CRC as an array of bytes
+   crc.finalizeAsArray(EOR);
+   const char *crcValue = HexStr(EOR, FOOTER_BYTES, HEX_UPPER_CASE);
+   txChar.writeValue(crcValue, false);
+   crc.reset();
+
+   // close for DEBUG
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(CR_LF, 2);
+
+   // release the blocker
+   _readerBusy = false;
+}
 #pragma endregion
 
 //-------------------------------------------------------------------------------------------------
@@ -417,15 +452,15 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 /// @param b substring
 /// @param position insert position
 ///
-void insert_substring(char *a, const char *b, int position)
+void InsertSubstring(char *a, const char *b, int position)
 {
    char *f, *e;
    int length;
 
    length = strlen(a);
 
-   f = substring(a, 1, position - 1);
-   e = substring(a, position, length - position + 1);
+   f = Substring(a, 1, position - 1);
+   e = Substring(a, position, length - position + 1);
 
    strcpy(a, "");
    strcat(a, f);
@@ -442,7 +477,7 @@ void insert_substring(char *a, const char *b, int position)
 /// @param length number of characters to extract
 /// @return
 ///
-char *substring(char *string, int position, int length)
+char *Substring(char *string, int position, int length)
 {
    char *pointer;
    int c;
@@ -623,6 +658,9 @@ void ConnectToReader(void)
          uidRecord[5] = headerdata[6];
          uidRecord[6] = headerdata[7];
 
+         // what is the total message size in bytes?
+         int message_length = pagedata[1] + 3;
+
          //
          // if this is the same UID then we don't process this - otherwise we end
          // up in a never ending loop of reading the TAG and sending the data back
@@ -655,6 +693,10 @@ void ConnectToReader(void)
                      PublishHexPayloadToBluetooth(pagedata, headerdata);
                   }
                }
+            }
+            else
+            {
+               PublishBinaryUIDToBluetooth(headerdata);
             }
 
             // clear TAG contents or write complete NDEF message
@@ -1097,6 +1139,8 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
    // let the user know we've detected the tag or sensor
    PublishResponseToBluetooth(scomp_response_processing, sizeof(scomp_response_processing) - 1);
 
+   READER_DEBUGPRINT.print("ClearTheCard()");
+
    // create the page buffer
    uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
 
@@ -1109,6 +1153,8 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
       memset(pageBuffer, 0, 4);
       nfc.ntag2xx_WritePage(i, pageBuffer);
       ToggleLED(true);
+      READER_DEBUGPRINT.print(i);
+      READER_DEBUGPRINT.print(" ");
    }
 
    // let the user know we're done here!
@@ -1450,7 +1496,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             }
          }
 
-         // #ifdef SERIAL_RECEIVE_DEBUG
+#ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(">> ID: [");
          READER_DEBUGPRINT.print(_messageIdentifier);
          READER_DEBUGPRINT.print("],   query body: [");
@@ -1467,7 +1513,7 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
             READER_DEBUGPRINT.println(" - VALID]");
          else
             READER_DEBUGPRINT.println(" - INVALID]");
-         // #endif
+#endif
 
          if (crcIsConfirmed)
          {
@@ -1487,9 +1533,9 @@ void onBLEWritten(BLEDevice central, BLECharacteristic characteristic)
       }
       else
       {
-         // #ifdef SERIAL_RECEIVE_DEBUG
+#ifdef SERIAL_RECEIVE_DEBUG
          READER_DEBUGPRINT.print(".");
-         // #endif
+#endif
       }
 
       delete[] queryID;
@@ -1550,11 +1596,11 @@ void ProcessReceivedQueries()
          if (_scomp_command != SCOMP_command::none)
          {
             size_t colon = search.find(':');
-            char *subs = substring(queryBody, colon + 2, _SerialBuffer.getLength() - (colon + 1));
+            char *subs = Substring(queryBody, colon + 2, _SerialBuffer.getLength() - (colon + 1));
 
-#ifdef SERIAL_RECEIVE_DEBUG
+            // #ifdef SERIAL_RECEIVE_DEBUG
             READER_DEBUGPRINT.println(subs);
-#endif
+            // #endif
             PublishResponseToBluetooth(scomp_response_ok, sizeof(scomp_response_ok) - 1);
 
             // process the query command
@@ -1579,7 +1625,7 @@ void ProcessReceivedQueries()
                READER_DEBUGPRINT.println("NONE");
                break;
             case SCOMP_command::rfidscanUSR:
-               READER_DEBUGPRINT.println("RFID SCAN USR");
+               ProcessSingleScanUSR(subs, _SerialBuffer.getLength() - (colon + 1));
                break;
             case SCOMP_command::rfidscanTID:
                READER_DEBUGPRINT.println("RFID SCAN TID");
@@ -1592,6 +1638,9 @@ void ProcessReceivedQueries()
                break;
             case SCOMP_command::clearcache:
                ProcessClearCache();
+               break;
+            case SCOMP_command::rfiderase:
+               ProcessEraseTag();
                break;
             }
 
@@ -1612,11 +1661,33 @@ void ProcessReceivedQueries()
 ///
 void ProcessGetCache()
 {
+#ifdef SERIAL_RECEIVE_DEBUG
    READER_DEBUGPRINT.print("GET CACHE");
+#endif
    uint16_t records = ndef_message->getRecordCount();
    uint16_t totalSize = ndef_message->getEncodedSize();
    std::string payload = std::to_string(records) + "," + std::to_string(totalSize);
    PublishResponseToBluetooth(&payload[0], payload.size());
+}
+
+///
+/// @brief Erase all USR (NDEF) memory in the NTAG
+/// @brief Note: this is NOT an official SCANNDY command!
+///
+void ProcessEraseTag()
+{
+#ifdef SERIAL_RECEIVE_DEBUG
+   READER_DEBUGPRINT.println("ERASE NDEF RECORDS");
+#endif
+
+   // clear all existing TAG records
+   if (ndef_message->getRecordCount() > 0)
+   {
+      ndef_message->dropAllRecords();
+   }
+
+   //  we want to completely erase the contents of the card
+   _command = PN532_command::EraseCardContents;
 }
 
 ///
@@ -1625,11 +1696,26 @@ void ProcessGetCache()
 ///
 void ProcessClearCache()
 {
+#ifdef SERIAL_RECEIVE_DEBUG
    READER_DEBUGPRINT.println("CLEAR CACHE");
+#endif
    if (ndef_message->getRecordCount() > 0)
    {
       ndef_message->dropAllRecords();
    }
+}
+
+///
+/// @brief force the reader to scan just the ONCE
+/// @param query received query string
+/// @param length number of characters in received query string
+///
+void ProcessSingleScanUSR(char *query, size_t length)
+{
+#ifdef SERIAL_RECEIVE_DEBUG
+   READER_DEBUGPRINT.println("RFID SCAN USR");
+#endif
+   _command = PN532_command::ReadCardOnce;
 }
 
 ///
@@ -1644,7 +1730,7 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    int recordLength = 0;
    int startIndex = 0;
 
-   char *subs = substring(query, 4 + 1, length - 4);
+   char *subs = Substring(query, 4 + 1, length - 4);
    std::string search(subs);
    size_t comma = search.find(',');
 
@@ -1652,8 +1738,8 @@ void ProcessRfidWriteQuery(char *query, size_t length)
    // get the starting address and the ndef payload. We pretty much ignore the
    // starting address, although we DO need the NDEF payload!
    //
-   char *address = substring(subs, 1, comma);
-   char *ndef = substring(subs, comma + 2, length - (comma - 1));
+   char *address = Substring(subs, 1, comma);
+   char *ndef = Substring(subs, comma + 2, length - (comma - 1));
    int ndefPayloadLength = length - (comma + 5);
 
 #ifdef SERIAL_RECEIVE_DEBUG
@@ -1697,13 +1783,13 @@ void ProcessRfidWriteQuery(char *query, size_t length)
          startIndex = ndefIndexes[i] + 2;
       }
 
-      char *record = substring(ndef, startIndex, recordLength);
+      char *record = Substring(ndef, startIndex, recordLength);
       AddNdefRecordToMessage((byte *)record, recordLength);
       free(record);
    }
 
    // we want to publish the buffered NDEF message
-   _command = PublishCacheToCard;
+   _command = PN532_command::PublishCacheToCard;
 
    // and not forgetting!
    free(address);

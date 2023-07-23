@@ -318,10 +318,11 @@ enum SCOMP_command : uint8_t
     rfidscanTID = 0x07,
     rfidwrite = 0x08,
     getcache = 0x09,
-    clearcache = 0x0A
+    clearcache = 0x0A,
+    rfiderase = 0x0B 
 };
 
-const size_t SCOMP_COMMAND_COUNT = 10;
+const size_t SCOMP_COMMAND_COUNT = 11;
 
 const char SCOMP_GET_VERSION[] = "getversion:";
 const char SCOMP_BEEP[] = "beep:";
@@ -333,6 +334,7 @@ const char SCOMP_RFID_SCAN_TID[] = "rfidscan:tid";
 const char SCOMP_RFID_WRITE[] = "rfidwrite:";
 const char SCOMP_GET_CACHE[] = "getcache:";
 const char SCOMP_CLEAR_CACHE[] = "clearcache:";
+const char SCOMP_RFID_ERASE[] = "rfiderase:";
 
 ///
 /// @brief array of command strings
@@ -346,7 +348,8 @@ const std::string scompCommands[SCOMP_COMMAND_COUNT] = {SCOMP_GET_VERSION,
                                                         SCOMP_RFID_SCAN_TID,
                                                         SCOMP_RFID_WRITE,
                                                         SCOMP_GET_CACHE,
-                                                        SCOMP_CLEAR_CACHE};
+                                                        SCOMP_CLEAR_CACHE,
+                                                        SCOMP_RFID_ERASE};
 
 //------------------------------------------------------------------------------------------------
 
@@ -427,6 +430,8 @@ char scomp_response_processing[] = "...";
 
 #pragma region METHOD PROTOTYPES
 int GetPageCount(int);
+char *Substring(char *, int, int);
+const char *HexStr(const uint8_t *, int, bool);
 NTAG GetCardType(uint8_t *);
 size_t WriteToSPP(uint8_t);
 static void onBLEWritten(BLEDevice, BLECharacteristic);
@@ -439,32 +444,33 @@ void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
 void AtTime(void);
-void ProcessClearCache();
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();
 void ExecuteReaderCommands(uint8_t *, uint8_t *);
 void FlashLED(int, int);
-void ProcessGetCache();
 void GetCachedRecordCount(uint8_t &);
+void InsertSubstring(char *, const char *, int);
 void onBLEConnected(BLEDevice);
 void onBLEDisconnected(BLEDevice);
 void onRxCharValueUpdate(BLEDevice, BLECharacteristic);
+void ProcessClearCache();
+void ProcessEraseTag();
+void ProcessGetCache();
+void ProcessReceivedQueries();
 void ProcessRfidWriteQuery(char *, size_t);
+void ProcessSingleScanUSR(char *, size_t);
 void PublishBattery();
+void PublishBinaryPayloadToBluetooth(uint8_t *, uint8_t *);
+void PublishBinaryUIDToBluetooth(uint8_t *);
 void PublishHardwareDetails();
 void PublishHexPayloadToBluetooth(uint8_t *, uint8_t *);
-void PublishBinaryPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(char *, size_t);
 void ResetReader();
 void SetupBLE();
 void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
-void ProcessReceivedQueries();
-char *substring(char *, int, int);
-void insert_substring(char *, const char *, int);
-const char *HexStr(const uint8_t *, int, bool);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------
