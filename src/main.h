@@ -447,6 +447,7 @@ void AddDeviceServiceBLE();
 void AddNdefRecordToMessage(byte *, int);
 void AddNdefTextRecordToMessage(byte *, int);
 void AtTime(void);
+void ClearTagIdentifier();
 void ClearTheCard(uint8_t *, uint8_t *);
 void ConnectToReader(void);
 void DebugPrintCache();

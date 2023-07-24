@@ -401,6 +401,12 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 ///
 void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
 {
+   // if the UID matches, then we don't want to proceed here..
+   if (CompareTagIdentifier(headerdata))
+   {
+      return;
+   }
+
    // reference a newly received UID from an empty card
    SetTagIdentifier(headerdata);
 
@@ -558,6 +564,17 @@ bool CompareTagIdentifier(uint8_t *headerdata)
       }
    }
    return count >= 0x08;
+}
+
+///
+/// @brief clear contents of the TAG identifier
+///
+void ClearTagIdentifier()
+{
+   for (uint8_t i = 0x00; i < 0x08; i++)
+   {
+      NTAG_UUID[i] == 0x00;
+   }
 }
 #pragma endregion
 
@@ -748,19 +765,12 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
-         //
-         // if this UID has already been processed, then we don't want to repeat the
-         // process. This is primarily for ISO 14443 devices that have no NDEF data 
-         // cached in the user memory
-         //
-         if (CompareTagIdentifier(headerdata))
-         {
-            // clear TAG contents or write complete NDEF message
-            ExecuteReaderCommands(headerdata, pagedata);
+         // as this card is emply, we need to publish the UID back to the host
+         PublishBinaryUIDToBluetooth(headerdata);
 
-            // as this card is emply, we need to publish the UID back to the host
-            PublishBinaryUIDToBluetooth(headerdata);
-         }
+         // clear TAG contents or write complete NDEF message
+         ExecuteReaderCommands(headerdata, pagedata);
+
       }
 
       delete[] pagedata;
@@ -1178,8 +1188,6 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
    // let the user know we've detected the tag or sensor
    PublishResponseToBluetooth(scomp_response_processing, sizeof(scomp_response_processing) - 1);
 
-   READER_DEBUGPRINT.print("ClearTheCard()");
-
    // create the page buffer
    uint8_t pageBuffer[BYTES_PER_BLOCK] = {0, 0, 0, 0};
 
@@ -1192,8 +1200,6 @@ void ClearTheCard(uint8_t *headerdata, uint8_t *pagedata)
       memset(pageBuffer, 0, 4);
       nfc.ntag2xx_WritePage(i, pageBuffer);
       ToggleLED(true);
-      READER_DEBUGPRINT.print(i);
-      READER_DEBUGPRINT.print(" ");
    }
 
    // let the user know we're done here!
@@ -1724,6 +1730,9 @@ void ProcessEraseTag()
    {
       ndef_message->dropAllRecords();
    }
+
+   // make sure we can read the tag contents again
+   ClearTagIdentifier();
 
    //  we want to completely erase the contents of the card
    _command = PN532_command::EraseCardContents;
