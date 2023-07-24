@@ -264,6 +264,9 @@ uint8_t WRITE_ERROR_OVERRUN[4] = {0x03, 0x01, 0x0d, 0x0a};
 /// @brief  > error in attempting to read NDEF data from an empty card
 uint8_t CARD_ERROR_EMPTY[4] = {0x04, 0x01, 0x0d, 0x0a};
 
+/// @brief  > stores a copy of the last read UID
+uint8_t NTAG_UUID[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 //------------------------------------------------------------------------------------------------
 
 uint8_t NDEF_EN_RECORD_EXTRA_PAGE_BYTES = 0x05;
@@ -471,6 +474,9 @@ void SetupBLE();
 void StartBLE();
 void ToggleLED(bool);
 void WriteNdefMessagePayload(uint8_t *, bool);
+
+void SetTagIdentifier(uint8_t *);
+bool CompareTagIdentifier(uint8_t *);
 #pragma endregion
 
 //------------------------------------------------------------------------------------------------

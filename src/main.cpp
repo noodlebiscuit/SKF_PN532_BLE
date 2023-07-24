@@ -196,6 +196,9 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    const char *hexNotation;
    uint8_t *queryBody = new uint8_t[BLOCK_SIZE_BLE];
 
+   // we make a global copy of the UID to prevent multiple reads of empty TAGS
+   SetTagIdentifier(headerdata);
+
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
 
@@ -316,6 +319,9 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 ///
 void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 {
+   // we make a global copy of the UID to prevent multiple reads of empty TAGS
+   SetTagIdentifier(headerdata);
+
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
 
@@ -395,6 +401,15 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 ///
 void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
 {
+   // if the UID matches, then we don't want to proceed here..
+   if (CompareTagIdentifier(headerdata))
+   {
+      return;
+   }
+
+   // reference a newly received UID from an empty card
+   SetTagIdentifier(headerdata);
+
    // make sure we don't have any NFC scanning overlaps here
    _readerBusy = true;
 
@@ -519,6 +534,36 @@ const char *HexStr(const uint8_t *data, int len, bool uppercase)
       std::transform(x.begin(), x.end(), x.begin(), ::toupper);
    }
    return x.c_str();
+}
+
+///
+/// @brief writes the UID of the last TAG read to a global cache
+/// @param headerdata first eight bytes of an ISO 14443 (NDEF) card
+///
+void SetTagIdentifier(uint8_t *headerdata)
+{
+   for (int i = 0; i < 8; i++)
+   {
+      NTAG_UUID[i] = headerdata[i];
+   }
+}
+
+///
+/// @brief inserts on string into another
+/// @param headerdata first eight bytes of an ISO 14443 (NDEF) card
+/// @return true if the eight ISO 14443 header bytes match
+///
+bool CompareTagIdentifier(uint8_t *headerdata)
+{
+   uint8_t count = 0;
+   for (uint8_t i = 0x00; i < 0x08; i++)
+   {
+      if (NTAG_UUID[i] == headerdata[i])
+      {
+         count++;
+      }
+   }
+   return count >= 0x08;
 }
 #pragma endregion
 
@@ -658,9 +703,6 @@ void ConnectToReader(void)
          uidRecord[5] = headerdata[6];
          uidRecord[6] = headerdata[7];
 
-         // what is the total message size in bytes?
-         int message_length = pagedata[1] + 3;
-
          //
          // if this is the same UID then we don't process this - otherwise we end
          // up in a never ending loop of reading the TAG and sending the data back
@@ -694,10 +736,6 @@ void ConnectToReader(void)
                   }
                }
             }
-            else
-            {
-               PublishBinaryUIDToBluetooth(headerdata);
-            }
 
             // clear TAG contents or write complete NDEF message
             ExecuteReaderCommands(headerdata, pagedata);
@@ -716,12 +754,12 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
+         // as this card is emply, we need to publish the UID back to the host
+         PublishBinaryUIDToBluetooth(headerdata);
+
          // clear TAG contents or write complete NDEF message
          ExecuteReaderCommands(headerdata, pagedata);
 
-         // post two 0xff bytes to signify end of write sequence
-         /* TODO ADD ERROR HERE*/
-         // PublishWriteFeedback(CARD_ERROR_EMPTY[0], CARD_ERROR_EMPTY[1]);
       }
 
       delete[] pagedata;
