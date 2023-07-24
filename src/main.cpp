@@ -401,12 +401,6 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 ///
 void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
 {
-   // if the UID matches, then we don't want to proceed here..
-   if (CompareTagIdentifier(headerdata))
-   {
-      return;
-   }
-
    // reference a newly received UID from an empty card
    SetTagIdentifier(headerdata);
 
@@ -754,12 +748,19 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
-         // as this card is emply, we need to publish the UID back to the host
-         PublishBinaryUIDToBluetooth(headerdata);
+         //
+         // if this UID has already been processed, then we don't want to repeat the
+         // process. This is primarily for ISO 14443 devices that have no NDEF data 
+         // cached in the user memory
+         //
+         if (CompareTagIdentifier(headerdata))
+         {
+            // clear TAG contents or write complete NDEF message
+            ExecuteReaderCommands(headerdata, pagedata);
 
-         // clear TAG contents or write complete NDEF message
-         ExecuteReaderCommands(headerdata, pagedata);
-
+            // as this card is emply, we need to publish the UID back to the host
+            PublishBinaryUIDToBluetooth(headerdata);
+         }
       }
 
       delete[] pagedata;
