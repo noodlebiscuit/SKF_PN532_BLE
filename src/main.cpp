@@ -456,6 +456,80 @@ void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
    // release the blocker
    _readerBusy = false;
 }
+
+///
+/// @brief Streams the NDEF UID header out over Bluetooth as a single sixteen byte packet
+/// @param headerdata NDEF meassage header with UUID
+///
+void PublishHexUIDToBluetooth(uint8_t *headerdata)
+{
+   // reference a newly received UID from an empty card
+   SetTagIdentifier(headerdata);
+
+   const char *hexNotation;
+   uint8_t *queryBody = new uint8_t[BLOCK_SIZE_BLE];
+
+   // convert the TAG header into HEX NOTATION strings (as opposed to raw binary)
+   hexNotation = HexStr(headerdata, BLOCK_SIZE_BLE, HEX_UPPER_CASE);
+
+   // make sure we don't have any NFC scanning overlaps here
+   _readerBusy = true;
+
+   // how many bytes is this payload going to contain?
+   uint16_t totalBytes = RFID_RESPONSE_BYTES + (BLOCK_SIZE_BLE * 2);
+
+   // set the SCOMP PROTOCOL total TAG payload length
+   PAYLOAD_LEGTH[0] = (uint8_t)((totalBytes & 0xff00) >> 8);
+   PAYLOAD_LEGTH[1] = (uint8_t)(totalBytes & 0x00ff);
+
+   // insert the payload length into the SCOMP PROTOCOL RFID DATA HEADER
+   const char *payloadLength = HexStr(PAYLOAD_LEGTH, LENGTH_BYTES, HEX_UPPER_CASE);
+   for (int i = 0; i < (int)sizeof(payloadLength); i++)
+   {
+      scomp_rfid_response_header[i + 5] = payloadLength[i];
+   }
+
+   // generate the CRC for the payload header block
+   crc.update(scomp_rfid_response_header, HEADER_BYTES);
+
+   // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
+   txChar.writeValue(scomp_rfid_response_header, false);
+
+   // generate the CRC for the NFC (ISO 14443) header block
+   crc.update(hexNotation, (BLOCK_SIZE_BLE * 2));
+
+   // reset the page index
+   int index = 0;
+
+   // PUBLISH THE NTAG (ISO14443) 16 BYTES UUID HEADER
+   for (int k = 0; k < 2; k++)
+   {
+      memset(queryBody, 0, BLOCK_SIZE_BLE);
+      for (int i = 0; i < BLOCK_SIZE_BLE; i++)
+      {
+         queryBody[i] = (uint8_t)hexNotation[i + (index * BLOCK_SIZE_BLE)];
+      }
+      txChar.writeValue(queryBody, BLOCK_SIZE_BLE);
+      delayMicroseconds(BLOCK_WAIT_BLE);
+      index++;
+   }
+
+   // add the serial port delay to improve comms efficiency
+   delayMicroseconds(BLOCK_WAIT_BLE);
+
+   // publish the final CRC as an array of bytes
+   crc.finalizeAsArray(EOR);
+   const char *crcValue = HexStr(EOR, FOOTER_BYTES, HEX_UPPER_CASE);
+   txChar.writeValue(crcValue, false);
+   crc.reset();
+
+   // close for DEBUG
+   delayMicroseconds(BLOCK_WAIT_BLE);
+   txChar.writeValue(CR_LF, 2);
+
+   // release the blocker
+   _readerBusy = false;
+}
 #pragma endregion
 
 //-------------------------------------------------------------------------------------------------
@@ -765,12 +839,23 @@ void ConnectToReader(void)
 #ifdef READER_DEBUG
          READER_DEBUGPRINT.println(INVALID_NDEF);
 #endif
+         //
          // as this card is emply, we need to publish the UID back to the host
-         PublishBinaryUIDToBluetooth(headerdata);
+         // if we have at least one NDEF record then write this to USB. As with
+         // general user memory, we allow this to be returned in either raw binary
+         // or formatted ASCII
+         //
+         if (SET_OUTPUT_AS_BINARY)
+         {
+            PublishBinaryUIDToBluetooth(headerdata);
+         }
+         else
+         {
+            PublishHexUIDToBluetooth(headerdata);
+         }
 
          // clear TAG contents or write complete NDEF message
          ExecuteReaderCommands(headerdata, pagedata);
-
       }
 
       delete[] pagedata;

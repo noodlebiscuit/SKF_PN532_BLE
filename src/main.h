@@ -467,6 +467,7 @@ void ProcessSingleScanUSR(char *, size_t);
 void PublishBattery();
 void PublishBinaryPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishBinaryUIDToBluetooth(uint8_t *);
+void PublishHexUIDToBluetooth(uint8_t *);
 void PublishHardwareDetails();
 void PublishHexPayloadToBluetooth(uint8_t *, uint8_t *);
 void PublishResponseToBluetooth(char *, size_t);
