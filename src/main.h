@@ -25,7 +25,6 @@ using namespace std::chrono;
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 // BLE service descriptors
-#define UUID_SERVICE_FEIG_SPP " 2D8F4660-8ACB-11EA-AB12-0800200C9A66"          // UUIC for the FEIG SPP UART service
 #define UUID_SERVICE_NORDIC_SPP "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"         // UUID for NORDIC SPP UART service
 #define UUID_SERVICE_BATTERY "0000180F-0000-1000-8000-00805F9B34Fb"            // UUID for the battery service
 #define UUID_SERVICE_DEVICE_INFORMATION "0000180A-0000-1000-8000-00805F9B34Fb" // UUID for the device information service
