@@ -25,15 +25,16 @@ using namespace std::chrono;
 
 #pragma region BLUETOOTH LOW ENERGY SUPPORT
 // BLE service descriptors
-#define UUID_SERVICE_NORDIC_SPP "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"         // UUID for NORDIC SPP UART
+#define UUID_SERVICE_FEIG_SPP " 2D8F4660-8ACB-11EA-AB12-0800200C9A66"          // UUIC for the FEIG SPP UART service
+#define UUID_SERVICE_NORDIC_SPP "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"         // UUID for NORDIC SPP UART service
 #define UUID_SERVICE_BATTERY "0000180F-0000-1000-8000-00805F9B34Fb"            // UUID for the battery service
 #define UUID_SERVICE_DEVICE_INFORMATION "0000180A-0000-1000-8000-00805F9B34Fb" // UUID for the device information service
 
 // BLE service characteristics
-#define UUID_CHARACTERISTIC_SPP_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SPP UART receive data
-#define UUID_CHARACTERISTIC_SPP_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"       // NORDIC SSP UART transmit data
+#define UUID_CHARACTERISTIC_SPP_RX "6E400002-B5A3-F393-E0A9-E50E24DCCA9E" // NORDIC SPP UART receive data
+#define UUID_CHARACTERISTIC_SPP_TX "6E400003-B5A3-F393-E0A9-E50E24DCCA9E" // NORDIC SSP UART transmit data
 // ------------------------------------------------------------------------------------------------
-#define UUID_CHARACTERISTIC_BATTERY "00002A19-0000-1000-8000-00805f9b34fb"      // battery level characteristic
+#define UUID_CHARACTERISTIC_BATTERY "00002A19-0000-1000-8000-00805f9b34fb" // battery level characteristic
 // ------------------------------------------------------------------------------------------------
 #define UUID_CHARACTERISTIC_MODEL "00002A24-0000-1000-8000-00805f9b34fb"        // model number characteristic
 #define UUID_CHARACTERISTIC_SERIAL "00002A25-0000-1000-8000-00805f9b34fb"       // serial number characteristic
@@ -47,7 +48,7 @@ using namespace std::chrono;
 #define MANUFACTURER_NAME_STRING "FEIG ELECTRONIC GmbH"
 #define MODEL_NAME_STRING "Ecco-Smart-Plus"
 #define HARDWARE_NAME_STRING "Emulator by SKF (UK)"
-#define FIRMWARE_NAME_STRING "20230703-2202"
+#define FIRMWARE_NAME_STRING "20230725-BINARY"
 #define SERIAL_NO_NAME_STRING "HF-BLE-0000001-DEV"
 
 // set the manufacturer code to 'SKF (U.K.) Limited'
@@ -102,6 +103,8 @@ BLECharacteristic serialNumberCharacteristic(UUID_CHARACTERISTIC_SERIAL, BLERead
 #define PLEASE_WAIT 0x2e           // full stop character
 #define BLOCK_SIZE_BLE 16          // block size in bytes
 #define BLOCK_WAIT_BLE 50000       // wait 50ms between each BLE transmit packet
+#define MULTIPLE_READ_WAIT 250000  // wait 250ms between transmits when reading the same TAG
+#define BLOCK_WAIT_BLE_HEX 25000   // wait 25ms between each BLE transmit packet
 #define BATTERY_READ_DELAY 1000    // wait 1ms between each read of the battery pin
 #define COMMAND_LED_FLASH 20       // wait 20ms between each BLE transmit packet
 #define TICK_RATE_MS 200ms         // update rate for the mbed timer
@@ -322,7 +325,7 @@ enum SCOMP_command : uint8_t
     rfidwrite = 0x08,
     getcache = 0x09,
     clearcache = 0x0A,
-    rfiderase = 0x0B 
+    rfiderase = 0x0B
 };
 
 const size_t SCOMP_COMMAND_COUNT = 11;
@@ -425,7 +428,7 @@ char scomp_response_ok[] = "ok";
 /// @brief scomp default response to a invalid processed query (E.g. wrong CRC32 value)
 char scomp_response_error[] = "error";
 
-/// @brief SKF INTERNAL ** 
+/// @brief SKF INTERNAL **
 char scomp_response_processing[] = "...";
 #pragma endregion
 

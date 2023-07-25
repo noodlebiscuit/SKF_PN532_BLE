@@ -230,7 +230,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 
    // PUBLISH SCANNDY PROTOCOL HEADER TO BLUETOOTH
    txChar.writeValue(scomp_rfid_response_header, false);
-   delayMicroseconds(BLOCK_WAIT_BLE);
+   delayMicroseconds(BLOCK_WAIT_BLE_HEX);
 
    // generate the CRC for the NFC (ISO 14443) header block
    crc.update(hexNotation, (BLOCK_SIZE_BLE * 2));
@@ -247,7 +247,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
          queryBody[i] = (uint8_t)hexNotation[i + (index * BLOCK_SIZE_BLE)];
       }
       txChar.writeValue(queryBody, BLOCK_SIZE_BLE);
-      delayMicroseconds(BLOCK_WAIT_BLE);
+      delayMicroseconds(BLOCK_WAIT_BLE_HEX);
       index++;
    }
 
@@ -265,7 +265,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    {
       // flush the transmission buffer and allow for some delay
       memset(queryBody, 0, BLOCK_SIZE_BLE);
-      delayMicroseconds(BLOCK_WAIT_BLE);
+      delayMicroseconds(BLOCK_WAIT_BLE_HEX);
 
       //
       // we initially transmit data in 16 byte blocks, then transmit the
@@ -295,7 +295,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    delete[] queryBody;
 
    // add the serial port delay to improve comms efficiency
-   delayMicroseconds(BLOCK_WAIT_BLE);
+   delayMicroseconds(BLOCK_WAIT_BLE_HEX);
 
    // publish the final CRC as an array of bytes
    crc.finalizeAsArray(EOR);
@@ -304,7 +304,7 @@ void PublishHexPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
    crc.reset();
 
    // close for DEBUG
-   delayMicroseconds(BLOCK_WAIT_BLE);
+   delayMicroseconds(BLOCK_WAIT_BLE_HEX);
    txChar.writeValue(CR_LF, 2);
 
    // release the blocker
@@ -401,10 +401,14 @@ void PublishBinaryPayloadToBluetooth(uint8_t *pagedata, uint8_t *headerdata)
 ///
 void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
 {
-   // if the UID matches, then we don't want to proceed here..
+   //
+   // if the UID matches beacuse we've just read this device, then force an arbitrary 
+   // delay here. This is to prevent multiple reads of the same TAG from swamping the
+   // BLE comms and hammering the battery
+   //
    if (CompareTagIdentifier(headerdata))
    {
-      return;
+      delayMicroseconds(MULTIPLE_READ_WAIT);
    }
 
    // reference a newly received UID from an empty card
@@ -463,6 +467,16 @@ void PublishBinaryUIDToBluetooth(uint8_t *headerdata)
 ///
 void PublishHexUIDToBluetooth(uint8_t *headerdata)
 {
+   //
+   // if the UID matches beacuse we've just read this device, then force an arbitrary 
+   // delay here. This is to prevent multiple reads of the same TAG from swamping the
+   // BLE comms and hammering the battery
+   //
+   if (CompareTagIdentifier(headerdata))
+   {
+      delayMicroseconds(MULTIPLE_READ_WAIT);
+   }
+
    // reference a newly received UID from an empty card
    SetTagIdentifier(headerdata);
 
@@ -510,12 +524,12 @@ void PublishHexUIDToBluetooth(uint8_t *headerdata)
          queryBody[i] = (uint8_t)hexNotation[i + (index * BLOCK_SIZE_BLE)];
       }
       txChar.writeValue(queryBody, BLOCK_SIZE_BLE);
-      delayMicroseconds(BLOCK_WAIT_BLE);
+      delayMicroseconds(BLOCK_WAIT_BLE_HEX);
       index++;
    }
 
    // add the serial port delay to improve comms efficiency
-   delayMicroseconds(BLOCK_WAIT_BLE);
+   delayMicroseconds(BLOCK_WAIT_BLE_HEX);
 
    // publish the final CRC as an array of bytes
    crc.finalizeAsArray(EOR);
@@ -524,7 +538,7 @@ void PublishHexUIDToBluetooth(uint8_t *headerdata)
    crc.reset();
 
    // close for DEBUG
-   delayMicroseconds(BLOCK_WAIT_BLE);
+   delayMicroseconds(BLOCK_WAIT_BLE_HEX);
    txChar.writeValue(CR_LF, 2);
 
    // release the blocker
